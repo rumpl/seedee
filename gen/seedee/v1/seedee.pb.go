@@ -936,6 +936,180 @@ func (x *CancelPipelineResponse) GetMessage() string {
 	return ""
 }
 
+// ListPipelinesRequest is the request for ListPipelines.
+type ListPipelinesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Optional status filter. If STATUS_UNSPECIFIED, all pipelines are returned.
+	StatusFilter  Status `protobuf:"varint,1,opt,name=status_filter,json=statusFilter,proto3,enum=seedee.v1.Status" json:"status_filter,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPipelinesRequest) Reset() {
+	*x = ListPipelinesRequest{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPipelinesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPipelinesRequest) ProtoMessage() {}
+
+func (x *ListPipelinesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPipelinesRequest.ProtoReflect.Descriptor instead.
+func (*ListPipelinesRequest) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListPipelinesRequest) GetStatusFilter() Status {
+	if x != nil {
+		return x.StatusFilter
+	}
+	return Status_STATUS_UNSPECIFIED
+}
+
+// ListPipelinesResponse is the response for ListPipelines.
+type ListPipelinesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Summaries of matching pipeline runs.
+	Pipelines     []*PipelineSummary `protobuf:"bytes,1,rep,name=pipelines,proto3" json:"pipelines,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPipelinesResponse) Reset() {
+	*x = ListPipelinesResponse{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPipelinesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPipelinesResponse) ProtoMessage() {}
+
+func (x *ListPipelinesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPipelinesResponse.ProtoReflect.Descriptor instead.
+func (*ListPipelinesResponse) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListPipelinesResponse) GetPipelines() []*PipelineSummary {
+	if x != nil {
+		return x.Pipelines
+	}
+	return nil
+}
+
+// PipelineSummary is a brief overview of a pipeline run.
+type PipelineSummary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Pipeline run ID.
+	PipelineId string `protobuf:"bytes,1,opt,name=pipeline_id,json=pipelineId,proto3" json:"pipeline_id,omitempty"`
+	// Pipeline name.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Overall pipeline status.
+	Status Status `protobuf:"varint,3,opt,name=status,proto3,enum=seedee.v1.Status" json:"status,omitempty"`
+	// When the pipeline started.
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	// Total duration so far.
+	Duration      *durationpb.Duration `protobuf:"bytes,5,opt,name=duration,proto3" json:"duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PipelineSummary) Reset() {
+	*x = PipelineSummary{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PipelineSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PipelineSummary) ProtoMessage() {}
+
+func (x *PipelineSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PipelineSummary.ProtoReflect.Descriptor instead.
+func (*PipelineSummary) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *PipelineSummary) GetPipelineId() string {
+	if x != nil {
+		return x.PipelineId
+	}
+	return ""
+}
+
+func (x *PipelineSummary) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PipelineSummary) GetStatus() Status {
+	if x != nil {
+		return x.Status
+	}
+	return Status_STATUS_UNSPECIFIED
+}
+
+func (x *PipelineSummary) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *PipelineSummary) GetDuration() *durationpb.Duration {
+	if x != nil {
+		return x.Duration
+	}
+	return nil
+}
+
 var File_seedee_v1_seedee_proto protoreflect.FileDescriptor
 
 const file_seedee_v1_seedee_proto_rawDesc = "" +
@@ -1011,7 +1185,19 @@ const file_seedee_v1_seedee_proto_rawDesc = "" +
 	"pipelineId\"N\n" +
 	"\x16CancelPipelineResponse\x12\x1a\n" +
 	"\bcanceled\x18\x01 \x01(\bR\bcanceled\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage*\x98\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"N\n" +
+	"\x14ListPipelinesRequest\x126\n" +
+	"\rstatus_filter\x18\x01 \x01(\x0e2\x11.seedee.v1.StatusR\fstatusFilter\"Q\n" +
+	"\x15ListPipelinesResponse\x128\n" +
+	"\tpipelines\x18\x01 \x03(\v2\x1a.seedee.v1.PipelineSummaryR\tpipelines\"\xe3\x01\n" +
+	"\x0fPipelineSummary\x12\x1f\n" +
+	"\vpipeline_id\x18\x01 \x01(\tR\n" +
+	"pipelineId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12)\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x11.seedee.v1.StatusR\x06status\x129\n" +
+	"\n" +
+	"started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x125\n" +
+	"\bduration\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bduration*\x98\x01\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_PENDING\x10\x01\x12\x12\n" +
@@ -1029,11 +1215,12 @@ const file_seedee_v1_seedee_proto_rawDesc = "" +
 	"\x16EVENT_TYPE_JOB_SKIPPED\x10\x05\x12\x1b\n" +
 	"\x17EVENT_TYPE_STEP_STARTED\x10\x06\x12\x1c\n" +
 	"\x18EVENT_TYPE_STEP_FINISHED\x10\a\x12\x17\n" +
-	"\x13EVENT_TYPE_STEP_LOG\x10\b2\x8f\x02\n" +
+	"\x13EVENT_TYPE_STEP_LOG\x10\b2\xe3\x02\n" +
 	"\tCIService\x12K\n" +
 	"\vRunPipeline\x12\x1d.seedee.v1.RunPipelineRequest\x1a\x1b.seedee.v1.RunPipelineEvent0\x01\x12^\n" +
 	"\x11GetPipelineStatus\x12#.seedee.v1.GetPipelineStatusRequest\x1a$.seedee.v1.GetPipelineStatusResponse\x12U\n" +
-	"\x0eCancelPipeline\x12 .seedee.v1.CancelPipelineRequest\x1a!.seedee.v1.CancelPipelineResponseB0Z.github.com/rumpl/seedee/gen/seedee/v1;seedeev1b\x06proto3"
+	"\x0eCancelPipeline\x12 .seedee.v1.CancelPipelineRequest\x1a!.seedee.v1.CancelPipelineResponse\x12R\n" +
+	"\rListPipelines\x12\x1f.seedee.v1.ListPipelinesRequest\x1a .seedee.v1.ListPipelinesResponseB0Z.github.com/rumpl/seedee/gen/seedee/v1;seedeev1b\x06proto3"
 
 var (
 	file_seedee_v1_seedee_proto_rawDescOnce sync.Once
@@ -1048,7 +1235,7 @@ func file_seedee_v1_seedee_proto_rawDescGZIP() []byte {
 }
 
 var file_seedee_v1_seedee_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_seedee_v1_seedee_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_seedee_v1_seedee_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_seedee_v1_seedee_proto_goTypes = []any{
 	(Status)(0),                       // 0: seedee.v1.Status
 	(EventType)(0),                    // 1: seedee.v1.EventType
@@ -1063,45 +1250,55 @@ var file_seedee_v1_seedee_proto_goTypes = []any{
 	(*StepStatus)(nil),                // 10: seedee.v1.StepStatus
 	(*CancelPipelineRequest)(nil),     // 11: seedee.v1.CancelPipelineRequest
 	(*CancelPipelineResponse)(nil),    // 12: seedee.v1.CancelPipelineResponse
-	nil,                               // 13: seedee.v1.PipelineDefinition.EnvEntry
-	nil,                               // 14: seedee.v1.PipelineDefinition.JobsEntry
-	nil,                               // 15: seedee.v1.JobDefinition.EnvEntry
-	nil,                               // 16: seedee.v1.StepDefinition.EnvEntry
-	(*timestamppb.Timestamp)(nil),     // 17: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),       // 18: google.protobuf.Duration
+	(*ListPipelinesRequest)(nil),      // 13: seedee.v1.ListPipelinesRequest
+	(*ListPipelinesResponse)(nil),     // 14: seedee.v1.ListPipelinesResponse
+	(*PipelineSummary)(nil),           // 15: seedee.v1.PipelineSummary
+	nil,                               // 16: seedee.v1.PipelineDefinition.EnvEntry
+	nil,                               // 17: seedee.v1.PipelineDefinition.JobsEntry
+	nil,                               // 18: seedee.v1.JobDefinition.EnvEntry
+	nil,                               // 19: seedee.v1.StepDefinition.EnvEntry
+	(*timestamppb.Timestamp)(nil),     // 20: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),       // 21: google.protobuf.Duration
 }
 var file_seedee_v1_seedee_proto_depIdxs = []int32{
 	3,  // 0: seedee.v1.RunPipelineRequest.pipeline:type_name -> seedee.v1.PipelineDefinition
-	13, // 1: seedee.v1.PipelineDefinition.env:type_name -> seedee.v1.PipelineDefinition.EnvEntry
-	14, // 2: seedee.v1.PipelineDefinition.jobs:type_name -> seedee.v1.PipelineDefinition.JobsEntry
-	15, // 3: seedee.v1.JobDefinition.env:type_name -> seedee.v1.JobDefinition.EnvEntry
+	16, // 1: seedee.v1.PipelineDefinition.env:type_name -> seedee.v1.PipelineDefinition.EnvEntry
+	17, // 2: seedee.v1.PipelineDefinition.jobs:type_name -> seedee.v1.PipelineDefinition.JobsEntry
+	18, // 3: seedee.v1.JobDefinition.env:type_name -> seedee.v1.JobDefinition.EnvEntry
 	5,  // 4: seedee.v1.JobDefinition.steps:type_name -> seedee.v1.StepDefinition
-	16, // 5: seedee.v1.StepDefinition.env:type_name -> seedee.v1.StepDefinition.EnvEntry
+	19, // 5: seedee.v1.StepDefinition.env:type_name -> seedee.v1.StepDefinition.EnvEntry
 	1,  // 6: seedee.v1.RunPipelineEvent.type:type_name -> seedee.v1.EventType
-	17, // 7: seedee.v1.RunPipelineEvent.timestamp:type_name -> google.protobuf.Timestamp
+	20, // 7: seedee.v1.RunPipelineEvent.timestamp:type_name -> google.protobuf.Timestamp
 	0,  // 8: seedee.v1.RunPipelineEvent.status:type_name -> seedee.v1.Status
-	18, // 9: seedee.v1.RunPipelineEvent.duration:type_name -> google.protobuf.Duration
+	21, // 9: seedee.v1.RunPipelineEvent.duration:type_name -> google.protobuf.Duration
 	0,  // 10: seedee.v1.GetPipelineStatusResponse.status:type_name -> seedee.v1.Status
 	9,  // 11: seedee.v1.GetPipelineStatusResponse.jobs:type_name -> seedee.v1.JobStatus
-	17, // 12: seedee.v1.GetPipelineStatusResponse.started_at:type_name -> google.protobuf.Timestamp
-	18, // 13: seedee.v1.GetPipelineStatusResponse.duration:type_name -> google.protobuf.Duration
+	20, // 12: seedee.v1.GetPipelineStatusResponse.started_at:type_name -> google.protobuf.Timestamp
+	21, // 13: seedee.v1.GetPipelineStatusResponse.duration:type_name -> google.protobuf.Duration
 	0,  // 14: seedee.v1.JobStatus.status:type_name -> seedee.v1.Status
 	10, // 15: seedee.v1.JobStatus.steps:type_name -> seedee.v1.StepStatus
-	18, // 16: seedee.v1.JobStatus.duration:type_name -> google.protobuf.Duration
+	21, // 16: seedee.v1.JobStatus.duration:type_name -> google.protobuf.Duration
 	0,  // 17: seedee.v1.StepStatus.status:type_name -> seedee.v1.Status
-	18, // 18: seedee.v1.StepStatus.duration:type_name -> google.protobuf.Duration
-	4,  // 19: seedee.v1.PipelineDefinition.JobsEntry.value:type_name -> seedee.v1.JobDefinition
-	2,  // 20: seedee.v1.CIService.RunPipeline:input_type -> seedee.v1.RunPipelineRequest
-	7,  // 21: seedee.v1.CIService.GetPipelineStatus:input_type -> seedee.v1.GetPipelineStatusRequest
-	11, // 22: seedee.v1.CIService.CancelPipeline:input_type -> seedee.v1.CancelPipelineRequest
-	6,  // 23: seedee.v1.CIService.RunPipeline:output_type -> seedee.v1.RunPipelineEvent
-	8,  // 24: seedee.v1.CIService.GetPipelineStatus:output_type -> seedee.v1.GetPipelineStatusResponse
-	12, // 25: seedee.v1.CIService.CancelPipeline:output_type -> seedee.v1.CancelPipelineResponse
-	23, // [23:26] is the sub-list for method output_type
-	20, // [20:23] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	21, // 18: seedee.v1.StepStatus.duration:type_name -> google.protobuf.Duration
+	0,  // 19: seedee.v1.ListPipelinesRequest.status_filter:type_name -> seedee.v1.Status
+	15, // 20: seedee.v1.ListPipelinesResponse.pipelines:type_name -> seedee.v1.PipelineSummary
+	0,  // 21: seedee.v1.PipelineSummary.status:type_name -> seedee.v1.Status
+	20, // 22: seedee.v1.PipelineSummary.started_at:type_name -> google.protobuf.Timestamp
+	21, // 23: seedee.v1.PipelineSummary.duration:type_name -> google.protobuf.Duration
+	4,  // 24: seedee.v1.PipelineDefinition.JobsEntry.value:type_name -> seedee.v1.JobDefinition
+	2,  // 25: seedee.v1.CIService.RunPipeline:input_type -> seedee.v1.RunPipelineRequest
+	7,  // 26: seedee.v1.CIService.GetPipelineStatus:input_type -> seedee.v1.GetPipelineStatusRequest
+	11, // 27: seedee.v1.CIService.CancelPipeline:input_type -> seedee.v1.CancelPipelineRequest
+	13, // 28: seedee.v1.CIService.ListPipelines:input_type -> seedee.v1.ListPipelinesRequest
+	6,  // 29: seedee.v1.CIService.RunPipeline:output_type -> seedee.v1.RunPipelineEvent
+	8,  // 30: seedee.v1.CIService.GetPipelineStatus:output_type -> seedee.v1.GetPipelineStatusResponse
+	12, // 31: seedee.v1.CIService.CancelPipeline:output_type -> seedee.v1.CancelPipelineResponse
+	14, // 32: seedee.v1.CIService.ListPipelines:output_type -> seedee.v1.ListPipelinesResponse
+	29, // [29:33] is the sub-list for method output_type
+	25, // [25:29] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_seedee_v1_seedee_proto_init() }
@@ -1115,7 +1312,7 @@ func file_seedee_v1_seedee_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_seedee_v1_seedee_proto_rawDesc), len(file_seedee_v1_seedee_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   15,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
