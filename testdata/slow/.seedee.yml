@@ -1,0 +1,8 @@
+pipeline:
+  name: slow-test
+  jobs:
+    slow:
+      image: alpine:latest
+      steps:
+        - name: wait
+          run: sleep 30
