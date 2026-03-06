@@ -25,7 +25,7 @@ With --server, the pipeline is sent to a remote seedee server.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadPipelineConfig(configFile)
 			if err != nil {
-				return err
+				return fmt.Errorf("loading pipeline config: %w", err)
 			}
 			pipeline, err := core.NewPipelineFromConfig(cfg)
 			if err != nil {
@@ -127,15 +127,20 @@ func runRemote(ctx context.Context, pipeline *core.Pipeline, addr string) error 
 	// If context is canceled while streaming, try to explicitly cancel
 	// the remote pipeline before disconnecting.
 	cancelDone := make(chan struct{})
+	streamDone := make(chan struct{})
 	go func() {
 		defer close(cancelDone)
-		<-ctx.Done()
-		if pipelineID != "" {
-			cancelCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_, _ = client.CancelPipeline(cancelCtx, connect.NewRequest(&seedeev1.CancelPipelineRequest{
-				PipelineId: pipelineID,
-			}))
+		select {
+		case <-ctx.Done():
+			if pipelineID != "" {
+				cancelCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_, _ = client.CancelPipeline(cancelCtx, connect.NewRequest(&seedeev1.CancelPipelineRequest{
+					PipelineId: pipelineID,
+				}))
+			}
+		case <-streamDone:
+			// Stream finished normally; exit the goroutine.
 		}
 	}()
 
@@ -147,9 +152,15 @@ func runRemote(ctx context.Context, pipeline *core.Pipeline, addr string) error 
 		// Convert proto event to core event for the handler
 		coreEvent := protoEventToCore(event)
 		if err := handler.HandleEvent(coreEvent); err != nil {
+			close(streamDone)
+			<-cancelDone
 			return fmt.Errorf("handling event: %w", err)
 		}
 	}
+
+	// Signal the cancel goroutine that the stream is done.
+	close(streamDone)
+	<-cancelDone
 
 	if err := stream.Err(); err != nil {
 		return wrapConnectError(err, addr)

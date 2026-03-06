@@ -30,13 +30,19 @@ func NewClient() (*Client, error) {
 
 // Close closes the underlying Docker client.
 func (c *Client) Close() error {
-	return c.cli.Close()
+	if err := c.cli.Close(); err != nil {
+		return fmt.Errorf("closing docker client: %w", err)
+	}
+	return nil
 }
 
 // Ping checks if the Docker daemon is reachable.
 func (c *Client) Ping(ctx context.Context) error {
 	_, err := c.cli.Ping(ctx)
-	return err
+	if err != nil {
+		return fmt.Errorf("pinging docker daemon: %w", err)
+	}
+	return nil
 }
 
 // PullImage pulls a Docker image, writing progress to the given writer.
@@ -47,8 +53,10 @@ func (c *Client) PullImage(ctx context.Context, ref string, output io.Writer) er
 	}
 	defer reader.Close()
 
-	_, err = io.Copy(output, reader)
-	return err
+	if _, err := io.Copy(output, reader); err != nil {
+		return fmt.Errorf("reading pull output for %s: %w", ref, err)
+	}
+	return nil
 }
 
 // RunOptions configures a container run.

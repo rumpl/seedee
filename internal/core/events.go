@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -57,7 +58,7 @@ type MultiEventHandler struct {
 func (m *MultiEventHandler) HandleEvent(event Event) error {
 	for _, h := range m.Handlers {
 		if err := h.HandleEvent(event); err != nil {
-			return err
+			return fmt.Errorf("dispatching %s event: %w", event.Type, err)
 		}
 	}
 	return nil

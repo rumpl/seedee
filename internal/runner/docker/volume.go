@@ -20,5 +20,8 @@ func (c *Client) CreateVolume(ctx context.Context, name string) error {
 
 // RemoveVolume removes a Docker volume.
 func (c *Client) RemoveVolume(ctx context.Context, name string) error {
-	return c.cli.VolumeRemove(ctx, name, true)
+	if err := c.cli.VolumeRemove(ctx, name, true); err != nil {
+		return fmt.Errorf("removing volume %s: %w", name, err)
+	}
+	return nil
 }

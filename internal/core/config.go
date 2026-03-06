@@ -24,7 +24,7 @@ func ParseConfig(data []byte) (*PipelineConfig, error) {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("validating config: %w", err)
 	}
 	return &cfg, nil
 }
@@ -69,7 +69,7 @@ func (c *PipelineConfig) Validate() error {
 	}
 
 	if err := c.detectCycles(); err != nil {
-		return err
+		return fmt.Errorf("checking dependencies: %w", err)
 	}
 
 	return nil
@@ -112,7 +112,7 @@ func (c *PipelineConfig) detectCycles() error {
 			case unvisited:
 				parent[dep] = job
 				if err := dfs(dep); err != nil {
-					return err
+					return fmt.Errorf("checking job %q: %w", dep, err)
 				}
 			}
 		}
@@ -124,7 +124,7 @@ func (c *PipelineConfig) detectCycles() error {
 	for jobName := range c.Pipeline.Jobs {
 		if state[jobName] == unvisited {
 			if err := dfs(jobName); err != nil {
-				return err
+				return fmt.Errorf("checking job %q: %w", jobName, err)
 			}
 		}
 	}
