@@ -71,8 +71,8 @@ func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 		SourceDir: cwd,
 	})
 
-	// 4. Create log writer for terminal output
-	logWriter := &terminalLogWriter{
+	// 4. Create event handler for terminal output
+	eventHandler := &terminalEventHandler{
 		out:     os.Stdout,
 		errOut:  os.Stderr,
 		verbose: verbose,
@@ -80,8 +80,8 @@ func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 
 	// 5. Create and run engine
 	engine := &core.Engine{
-		Runner:    runner,
-		LogWriter: logWriter,
+		Runner:       runner,
+		EventHandler: eventHandler,
 	}
 
 	fmt.Fprintf(os.Stdout, "▶ Pipeline %q started\n", pipeline.Name)

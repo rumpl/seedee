@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	seedeev1 "github.com/rumpl/seedee/gen/seedee/v1"
 	"github.com/rumpl/seedee/internal/core"
@@ -79,10 +77,9 @@ func (h *CIServiceHandler) RunPipeline(
 		close(run.done)
 	}()
 
-	// 5. Create log writer that streams to client
-	logWriter := &streamLogWriter{
-		stream:     stream,
-		pipelineID: pipeline.ID,
+	// 5. Create event handler that streams events to the client
+	eventHandler := &streamEventHandler{
+		stream: stream,
 	}
 
 	// 6. Create Docker runner
@@ -96,46 +93,13 @@ func (h *CIServiceHandler) RunPipeline(
 
 	// 7. Create and run engine
 	engine := &core.Engine{
-		Runner:    runner,
-		LogWriter: logWriter,
-	}
-
-	// Send pipeline started event
-	if err := stream.Send(&seedeev1.RunPipelineEvent{
-		PipelineId: pipeline.ID,
-		Type:       seedeev1.EventType_EVENT_TYPE_PIPELINE_STARTED,
-		Timestamp:  timestamppb.Now(),
-		Status:     seedeev1.Status_STATUS_RUNNING,
-	}); err != nil {
-		return err
+		Runner:       runner,
+		EventHandler: eventHandler,
 	}
 
 	result, err := engine.Execute(runCtx, pipeline)
 	if err != nil {
-		// Send pipeline finished with failure
-		_ = stream.Send(&seedeev1.RunPipelineEvent{
-			PipelineId: pipeline.ID,
-			Type:       seedeev1.EventType_EVENT_TYPE_PIPELINE_FINISHED,
-			Timestamp:  timestamppb.Now(),
-			Status:     StatusToProto(core.StatusFailed),
-			Error:      err.Error(),
-		})
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("executing pipeline: %w", err))
-	}
-
-	// Send pipeline finished event
-	finishedEvent := &seedeev1.RunPipelineEvent{
-		PipelineId: pipeline.ID,
-		Type:       seedeev1.EventType_EVENT_TYPE_PIPELINE_FINISHED,
-		Timestamp:  timestamppb.Now(),
-		Status:     StatusToProto(result.Status),
-		Duration:   durationpb.New(result.Duration),
-	}
-	if result.Error != nil {
-		finishedEvent.Error = result.Error.Error()
-	}
-	if err := stream.Send(finishedEvent); err != nil {
-		return err
 	}
 
 	h.logger.Info("pipeline completed",
@@ -217,25 +181,20 @@ func (h *CIServiceHandler) PruneOldRuns(maxAge time.Duration) {
 	}
 }
 
-// streamLogWriter implements core.LogWriter and routes log output to a
+// streamEventHandler implements core.EventHandler and routes events to a
 // ConnectRPC server stream as RunPipelineEvent messages.
-type streamLogWriter struct {
-	stream     *connect.ServerStream[seedeev1.RunPipelineEvent]
-	pipelineID string
-	mu         sync.Mutex // protect concurrent stream writes
+type streamEventHandler struct {
+	stream *connect.ServerStream[seedeev1.RunPipelineEvent]
+	mu     sync.Mutex // protect concurrent stream writes
 }
 
-func (w *streamLogWriter) WriteLog(jobName, stepName string, data []byte, isStderr bool) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+// HandleEvent converts a core.Event to protobuf and sends it immediately
+// on the gRPC stream. No buffering — each event is flushed as a separate
+// HTTP/2 data frame.
+func (h *streamEventHandler) HandleEvent(event core.Event) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-	return w.stream.Send(&seedeev1.RunPipelineEvent{
-		PipelineId: w.pipelineID,
-		Type:       seedeev1.EventType_EVENT_TYPE_STEP_LOG,
-		Timestamp:  timestamppb.New(time.Now()),
-		JobName:    jobName,
-		StepName:   stepName,
-		LogData:    data,
-		IsStderr:   isStderr,
-	})
+	protoEvent := EventToProto(event)
+	return h.stream.Send(protoEvent)
 }

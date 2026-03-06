@@ -9,6 +9,54 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// EventToProto converts a core.Event to a protobuf RunPipelineEvent.
+func EventToProto(e core.Event) *seedeev1.RunPipelineEvent {
+	pe := &seedeev1.RunPipelineEvent{
+		PipelineId: e.PipelineID,
+		Type:       EventTypeToProto(e.Type),
+		JobName:    e.JobName,
+		StepName:   e.StepName,
+		LogData:    e.LogData,
+		IsStderr:   e.IsStderr,
+		Status:     StatusToProto(e.Status),
+		ExitCode:   int32(e.ExitCode),
+		Error:      e.Error,
+	}
+
+	if !e.Timestamp.IsZero() {
+		pe.Timestamp = timestamppb.New(e.Timestamp)
+	}
+	if e.Duration > 0 {
+		pe.Duration = durationpb.New(e.Duration)
+	}
+
+	return pe
+}
+
+// EventTypeToProto converts a core EventType to protobuf EventType.
+func EventTypeToProto(t core.EventType) seedeev1.EventType {
+	switch t {
+	case core.EventPipelineStarted:
+		return seedeev1.EventType_EVENT_TYPE_PIPELINE_STARTED
+	case core.EventPipelineFinished:
+		return seedeev1.EventType_EVENT_TYPE_PIPELINE_FINISHED
+	case core.EventJobStarted:
+		return seedeev1.EventType_EVENT_TYPE_JOB_STARTED
+	case core.EventJobFinished:
+		return seedeev1.EventType_EVENT_TYPE_JOB_FINISHED
+	case core.EventJobSkipped:
+		return seedeev1.EventType_EVENT_TYPE_JOB_SKIPPED
+	case core.EventStepStarted:
+		return seedeev1.EventType_EVENT_TYPE_STEP_STARTED
+	case core.EventStepFinished:
+		return seedeev1.EventType_EVENT_TYPE_STEP_FINISHED
+	case core.EventStepLog:
+		return seedeev1.EventType_EVENT_TYPE_STEP_LOG
+	default:
+		return seedeev1.EventType_EVENT_TYPE_UNSPECIFIED
+	}
+}
+
 // PipelineDefFromProto converts a protobuf PipelineDefinition to a core PipelineConfig.
 func PipelineDefFromProto(pb *seedeev1.PipelineDefinition) *core.PipelineConfig {
 	if pb == nil {
