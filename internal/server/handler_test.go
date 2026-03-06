@@ -32,7 +32,8 @@ func startIntegrationServer(t *testing.T) (baseURL string, cancel context.Cancel
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	ctx, cancelFn := context.WithCancel(context.Background())
 
-	srv := server.NewServer(addr, logger)
+	cfg := server.Config{Addr: addr}
+	srv := server.NewServer(cfg, logger)
 
 	go func() {
 		_ = srv.Start(ctx)
