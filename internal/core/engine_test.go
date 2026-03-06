@@ -39,31 +39,6 @@ func (m *mockRunner) Teardown(ctx context.Context, job *Job) error {
 	return nil
 }
 
-// mockLogWriter captures log writes for verification.
-type mockLogWriter struct {
-	mu      sync.Mutex
-	entries []logEntry
-}
-
-type logEntry struct {
-	jobName  string
-	stepName string
-	data     string
-	isStderr bool
-}
-
-func (w *mockLogWriter) WriteLog(jobName, stepName string, data []byte, isStderr bool) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.entries = append(w.entries, logEntry{
-		jobName:  jobName,
-		stepName: stepName,
-		data:     string(data),
-		isStderr: isStderr,
-	})
-	return nil
-}
-
 func TestEngine_SimpleSuccess(t *testing.T) {
 	pipeline := &Pipeline{
 		ID:   "test-1",
@@ -480,7 +455,7 @@ func TestEngine_LogsAreRouted(t *testing.T) {
 		Status: StatusPending,
 	}
 
-	logWriter := &mockLogWriter{}
+	handler := &BufferedEventHandler{}
 
 	runner := &mockRunner{
 		runStepFn: func(ctx context.Context, job *Job, step *Step, stdout, stderr io.Writer) (*StepResult, error) {
@@ -490,7 +465,7 @@ func TestEngine_LogsAreRouted(t *testing.T) {
 		},
 	}
 
-	engine := &Engine{Runner: runner, LogWriter: logWriter}
+	engine := &Engine{Runner: runner, EventHandler: handler}
 	result, err := engine.Execute(context.Background(), pipeline)
 
 	if err != nil {
@@ -500,33 +475,32 @@ func TestEngine_LogsAreRouted(t *testing.T) {
 		t.Errorf("expected status %q, got %q", StatusSuccess, result.Status)
 	}
 
-	logWriter.mu.Lock()
-	defer logWriter.mu.Unlock()
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
 
-	if len(logWriter.entries) != 2 {
-		t.Fatalf("expected 2 log entries, got %d", len(logWriter.entries))
-	}
-
-	// Check stdout entry
+	// Check for log events
 	foundStdout := false
 	foundStderr := false
-	for _, entry := range logWriter.entries {
-		if entry.jobName != "log-job" || entry.stepName != "log-step" {
-			t.Errorf("unexpected log entry job/step: %s/%s", entry.jobName, entry.stepName)
+	for _, event := range handler.Events {
+		if event.Type != EventStepLog {
+			continue
 		}
-		if entry.data == "stdout output" && !entry.isStderr {
+		if event.JobName != "log-job" || event.StepName != "log-step" {
+			t.Errorf("unexpected log event job/step: %s/%s", event.JobName, event.StepName)
+		}
+		if string(event.LogData) == "stdout output" && !event.IsStderr {
 			foundStdout = true
 		}
-		if entry.data == "stderr output" && entry.isStderr {
+		if string(event.LogData) == "stderr output" && event.IsStderr {
 			foundStderr = true
 		}
 	}
 
 	if !foundStdout {
-		t.Error("stdout output not routed to LogWriter")
+		t.Error("stdout output not routed to EventHandler")
 	}
 	if !foundStderr {
-		t.Error("stderr output not routed to LogWriter")
+		t.Error("stderr output not routed to EventHandler")
 	}
 }
 
@@ -772,9 +746,9 @@ func TestEngine_NonZeroExitCode(t *testing.T) {
 	}
 }
 
-func TestEngine_LogAdapterNilWriter(t *testing.T) {
-	adapter := &logAdapter{
-		writer:   nil,
+func TestEngine_EventLogAdapterNilHandler(t *testing.T) {
+	adapter := &eventLogAdapter{
+		handler:  nil,
 		job:      "test-job",
 		step:     "test-step",
 		isStderr: false,
@@ -789,9 +763,13 @@ func TestEngine_LogAdapterNilWriter(t *testing.T) {
 	}
 }
 
-func TestEngine_StdoutLogWriter(t *testing.T) {
-	w := &StdoutLogWriter{}
-	err := w.WriteLog("myjob", "mystep", []byte("hello\n"), false)
+func TestEngine_StdoutEventHandler(t *testing.T) {
+	h := &StdoutEventHandler{}
+	err := h.HandleEvent(Event{
+		Type:         EventPipelineStarted,
+		Timestamp:    time.Now(),
+		PipelineName: "test-pipeline",
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
