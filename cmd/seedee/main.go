@@ -1,8 +1,16 @@
-// Package main is the entry point for the seedee CLI.
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+
+	"github.com/rumpl/seedee/internal/cli"
+)
 
 func main() {
-	fmt.Println("seedee cli - not yet implemented")
+	root := cli.NewRootCmd()
+	if err := root.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		os.Exit(1)
+	}
 }
