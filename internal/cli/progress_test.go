@@ -10,6 +10,9 @@ import (
 	"github.com/rumpl/seedee/internal/core"
 )
 
+// fixedWidth returns a getWidth func that always returns w.
+func fixedWidth(w int) func() int { return func() int { return w } }
+
 // --- Non-TTY (plain) tests ---
 
 func TestProgressHandler_PipelineStarted_NonTTY(t *testing.T) {
@@ -49,6 +52,7 @@ func TestProgressHandler_PipelineStarted_FallbackToID(t *testing.T) {
 func TestProgressHandler_StepStarted_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
@@ -62,42 +66,55 @@ func TestProgressHandler_StepStarted_NonTTY(t *testing.T) {
 		StepName: "compile",
 	})
 	output := out.String()
+	// In the new job-oriented output, step start triggers the job header.
 	if !strings.Contains(output, "=>") {
-		t.Errorf("expected '=>' prefix for in-progress step, got: %s", output)
+		t.Errorf("expected '=>' prefix for job header, got: %s", output)
 	}
-	if !strings.Contains(output, "build/compile") {
-		t.Errorf("expected job/step name, got: %s", output)
+	if !strings.Contains(output, "build") {
+		t.Errorf("expected job name in header, got: %s", output)
 	}
 }
 
 func TestProgressHandler_StepFinished_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
 		Timestamp:  time.Now(),
 	})
 	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+	_ = h.HandleEvent(&core.Event{
 		Type:     core.EventStepStarted,
 		JobName:  "build",
 		StepName: "compile",
 	})
-	out.Reset()
-
 	_ = h.HandleEvent(&core.Event{
-		Type:     core.EventStepFinished,
+		Type:     core.EventStepLog,
 		JobName:  "build",
 		StepName: "compile",
+		LogData:  []byte("compiled OK\n"),
+	})
+	out.Reset()
+
+	// After step finishes successfully, the job finishes.
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventJobFinished,
+		JobName:  "build",
 		Status:   core.StatusSuccess,
 		Duration: 1200 * time.Millisecond,
 	})
+
 	output := out.String()
 	if !strings.Contains(output, "✓") {
 		t.Errorf("expected success icon, got: %s", output)
 	}
-	if !strings.Contains(output, "build/compile") {
-		t.Errorf("expected step name, got: %s", output)
+	if !strings.Contains(output, "build") {
+		t.Errorf("expected job name, got: %s", output)
 	}
 	if !strings.Contains(output, "1.2s") {
 		t.Errorf("expected duration, got: %s", output)
@@ -107,6 +124,7 @@ func TestProgressHandler_StepFinished_NonTTY(t *testing.T) {
 func TestProgressHandler_StepFailed_ShowsLogs_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
@@ -133,9 +151,6 @@ func TestProgressHandler_StepFailed_ShowsLogs_NonTTY(t *testing.T) {
 		Duration: 2 * time.Second,
 	})
 	output := out.String()
-	if !strings.Contains(output, "✗") {
-		t.Errorf("expected failure icon, got: %s", output)
-	}
 	if !strings.Contains(output, "error: something went wrong") {
 		t.Errorf("expected log output after failure, got: %s", output)
 	}
@@ -147,6 +162,7 @@ func TestProgressHandler_StepFailed_ShowsLogs_NonTTY(t *testing.T) {
 func TestProgressHandler_JobFinished_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
@@ -179,6 +195,7 @@ func TestProgressHandler_JobFinished_NonTTY(t *testing.T) {
 func TestProgressHandler_JobSkipped_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
@@ -205,6 +222,7 @@ func TestProgressHandler_JobSkipped_NonTTY(t *testing.T) {
 func TestProgressHandler_NoANSI_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -212,14 +230,17 @@ func TestProgressHandler_NoANSI_NonTTY(t *testing.T) {
 		Timestamp:    time.Now(),
 	})
 	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+	_ = h.HandleEvent(&core.Event{
 		Type:     core.EventStepStarted,
 		JobName:  "build",
 		StepName: "compile",
 	})
 	_ = h.HandleEvent(&core.Event{
-		Type:     core.EventStepFinished,
+		Type:     core.EventJobFinished,
 		JobName:  "build",
-		StepName: "compile",
 		Status:   core.StatusSuccess,
 		Duration: 1 * time.Second,
 	})
@@ -229,11 +250,77 @@ func TestProgressHandler_NoANSI_NonTTY(t *testing.T) {
 	}
 }
 
+// --- Streaming logs tests ---
+
+func TestProgressHandler_StreamingLogs_NonTTY(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "lint",
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventStepStarted,
+		JobName:  "lint",
+		StepName: "Download dependencies",
+	})
+	out.Reset()
+
+	// Send log events — they should stream immediately.
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventStepLog,
+		JobName:  "lint",
+		StepName: "Download dependencies",
+		LogData:  []byte("go: downloading gopkg.in/yaml.v3 v3.0.1\n"),
+	})
+	output := out.String()
+	if !strings.Contains(output, "[Download dependencies]") {
+		t.Errorf("expected step name prefix in streamed log, got: %s", output)
+	}
+	if !strings.Contains(output, "go: downloading gopkg.in/yaml.v3 v3.0.1") {
+		t.Errorf("expected log content, got: %s", output)
+	}
+}
+
+func TestProgressHandler_WaitingForDeps_NonTTY(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+
+	// Register dependencies before events arrive.
+	h.SetJobDependsOn("build", []string{"test"})
+	out.Reset()
+
+	// Job starts while dependency hasn't finished.
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+	output := out.String()
+	if !strings.Contains(output, "waiting for test") {
+		t.Errorf("expected 'waiting for test', got: %s", output)
+	}
+}
+
 // --- TTY tests ---
 
 func TestProgressHandler_PipelineStarted_TTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -256,6 +343,7 @@ func TestProgressHandler_PipelineStarted_TTY(t *testing.T) {
 func TestProgressHandler_InProgressStep_TTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -263,28 +351,37 @@ func TestProgressHandler_InProgressStep_TTY(t *testing.T) {
 		Timestamp:    time.Now(),
 	})
 	_ = h.HandleEvent(&core.Event{
-		Type:     core.EventStepStarted,
-		JobName:  "lint",
-		StepName: "run-lint",
+		Type:    core.EventJobStarted,
+		JobName: "lint",
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:      core.EventStepStarted,
+		JobName:   "lint",
+		StepName:  "run-lint",
 		Timestamp: time.Now(),
 	})
 	output := out.String()
 	if !strings.Contains(output, "=>") {
-		t.Errorf("expected '=>' for in-progress step, got: %s", output)
+		t.Errorf("expected '=>' for in-progress job, got: %s", output)
 	}
-	if !strings.Contains(output, "lint/run-lint") {
-		t.Errorf("expected step name, got: %s", output)
+	if !strings.Contains(output, "lint") {
+		t.Errorf("expected job name, got: %s", output)
 	}
 }
 
 func TestProgressHandler_CompletedStep_TTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
 		PipelineName: "test-pipeline",
 		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "lint",
 	})
 	_ = h.HandleEvent(&core.Event{
 		Type:      core.EventStepStarted,
@@ -299,6 +396,12 @@ func TestProgressHandler_CompletedStep_TTY(t *testing.T) {
 		Status:   core.StatusSuccess,
 		Duration: 1900 * time.Millisecond,
 	})
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventJobFinished,
+		JobName:  "lint",
+		Status:   core.StatusSuccess,
+		Duration: 1900 * time.Millisecond,
+	})
 	output := out.String()
 	if !strings.Contains(output, "✓") {
 		t.Errorf("expected success icon, got: %s", output)
@@ -308,9 +411,10 @@ func TestProgressHandler_CompletedStep_TTY(t *testing.T) {
 	}
 }
 
-func TestProgressHandler_MultipleParallelSteps_TTY(t *testing.T) {
+func TestProgressHandler_MultipleParallelJobs_TTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -318,10 +422,18 @@ func TestProgressHandler_MultipleParallelSteps_TTY(t *testing.T) {
 		Timestamp:    time.Now(),
 	})
 	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "lint",
+	})
+	_ = h.HandleEvent(&core.Event{
 		Type:      core.EventStepStarted,
 		JobName:   "lint",
 		StepName:  "deps",
 		Timestamp: time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
 	})
 	_ = h.HandleEvent(&core.Event{
 		Type:      core.EventStepStarted,
@@ -331,28 +443,33 @@ func TestProgressHandler_MultipleParallelSteps_TTY(t *testing.T) {
 	})
 	output := out.String()
 
-	// Both steps should appear
-	if !strings.Contains(output, "lint/deps") {
-		t.Errorf("expected lint/deps step, got: %s", output)
+	// Both jobs should appear with => markers.
+	if !strings.Contains(output, "lint") {
+		t.Errorf("expected lint job, got: %s", output)
 	}
-	if !strings.Contains(output, "build/compile") {
-		t.Errorf("expected build/compile step, got: %s", output)
+	if !strings.Contains(output, "build") {
+		t.Errorf("expected build job, got: %s", output)
 	}
 	// Both should show => since they're running
 	count := strings.Count(output, "=>")
 	if count < 2 {
-		t.Errorf("expected at least 2 '=>' markers for parallel steps, got %d", count)
+		t.Errorf("expected at least 2 '=>' markers for parallel jobs, got %d", count)
 	}
 }
 
 func TestProgressHandler_FailedStepShowsLogs_TTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
 		PipelineName: "ci",
 		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "test",
 	})
 	_ = h.HandleEvent(&core.Event{
 		Type:      core.EventStepStarted,
@@ -373,6 +490,12 @@ func TestProgressHandler_FailedStepShowsLogs_TTY(t *testing.T) {
 		Status:   core.StatusFailed,
 		Duration: 3 * time.Second,
 	})
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventJobFinished,
+		JobName:  "test",
+		Status:   core.StatusFailed,
+		Duration: 3 * time.Second,
+	})
 	output := out.String()
 	if !strings.Contains(output, "✗") {
 		t.Errorf("expected failure icon, got: %s", output)
@@ -388,10 +511,15 @@ func TestProgressHandler_FailedStepShowsLogs_TTY(t *testing.T) {
 func TestProgressHandler_LogTruncation(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
 		Timestamp:  time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "test",
 	})
 	_ = h.HandleEvent(&core.Event{
 		Type:      core.EventStepStarted,
@@ -400,7 +528,7 @@ func TestProgressHandler_LogTruncation(t *testing.T) {
 		Timestamp: time.Now(),
 	})
 
-	// Send 20 log lines, only last 10 should be kept
+	// Send 20 log lines, only last 10 should be kept in stepState
 	var lines []string
 	for i := 0; i < 20; i++ {
 		lines = append(lines, fmt.Sprintf("line-%d", i))
@@ -422,10 +550,7 @@ func TestProgressHandler_LogTruncation(t *testing.T) {
 	})
 
 	output := out.String()
-	// Should have the last 10 lines (line-10 through line-19)
-	if strings.Contains(output, "line-0") {
-		t.Errorf("expected old log lines to be truncated, got: %s", output)
-	}
+	// The failure log tail should have the last 10 lines (line-10 through line-19)
 	if !strings.Contains(output, "line-19") {
 		t.Errorf("expected last log line, got: %s", output)
 	}
@@ -437,6 +562,7 @@ func TestProgressHandler_LogTruncation(t *testing.T) {
 func TestProgressHandler_EmptyLogIgnored(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
@@ -470,6 +596,7 @@ func TestProgressHandler_EmptyLogIgnored(t *testing.T) {
 func TestProgressHandler_PrintSummary_Success_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(80)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -516,6 +643,7 @@ func TestProgressHandler_PrintSummary_Success_NonTTY(t *testing.T) {
 func TestProgressHandler_PrintSummary_Failed_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(80)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -549,6 +677,7 @@ func TestProgressHandler_PrintSummary_Failed_NonTTY(t *testing.T) {
 func TestProgressHandler_PrintSummary_Canceled_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(80)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -578,6 +707,7 @@ func TestProgressHandler_PrintSummary_Canceled_NonTTY(t *testing.T) {
 func TestProgressHandler_PrintSummary_Skipped_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(80)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -605,6 +735,7 @@ func TestProgressHandler_PrintSummary_Skipped_NonTTY(t *testing.T) {
 func TestProgressHandler_PrintSummary_TTY_HasANSI(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -633,6 +764,7 @@ func TestProgressHandler_PrintSummary_TTY_HasANSI(t *testing.T) {
 func TestProgressHandler_ThreadSafe(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
@@ -673,11 +805,16 @@ func TestStepKey(t *testing.T) {
 func TestProgressHandler_PrintSummary_FailedLogTail_TTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-1",
 		PipelineName: "ci",
 		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "test",
 	})
 	_ = h.HandleEvent(&core.Event{
 		Type:      core.EventStepStarted,
@@ -699,9 +836,9 @@ func TestProgressHandler_PrintSummary_FailedLogTail_TTY(t *testing.T) {
 		Duration: 3 * time.Second,
 	})
 	_ = h.HandleEvent(&core.Event{
-		Type:    core.EventJobFinished,
-		JobName: "test",
-		Status:  core.StatusFailed,
+		Type:     core.EventJobFinished,
+		JobName:  "test",
+		Status:   core.StatusFailed,
 		Duration: 3 * time.Second,
 	})
 	_ = h.HandleEvent(&core.Event{
@@ -730,6 +867,7 @@ func TestProgressHandler_PrintSummary_FailedLogTail_TTY(t *testing.T) {
 func TestProgressHandler_PrintSummary_FallbackToPipelineID(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(80)
 	// Don't send PipelineStarted event so pipelineName stays empty
 
 	h.PrintSummary(&core.PipelineResult{
@@ -750,6 +888,7 @@ func TestProgressHandler_PrintSummary_FallbackToPipelineID(t *testing.T) {
 func TestProgressHandler_StepFinishedWithoutStart(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
@@ -757,7 +896,8 @@ func TestProgressHandler_StepFinishedWithoutStart(t *testing.T) {
 	})
 	out.Reset()
 
-	// Step finished without a prior start event
+	// Step finished without a prior start event — for a failed step
+	// this still shows the log tail.
 	_ = h.HandleEvent(&core.Event{
 		Type:     core.EventStepFinished,
 		JobName:  "build",
@@ -766,15 +906,14 @@ func TestProgressHandler_StepFinishedWithoutStart(t *testing.T) {
 		Duration: 1 * time.Second,
 	})
 
-	output := out.String()
-	if !strings.Contains(output, "✓") {
-		t.Errorf("expected success icon even without start event, got: %s", output)
-	}
+	// No crash is the main assertion; success step finish produces no
+	// extra output in the new streaming model.
 }
 
 func TestProgressHandler_LogWithoutStepStart(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
@@ -804,26 +943,10 @@ func TestProgressHandler_LogWithoutStepStart(t *testing.T) {
 	}
 }
 
-// Verify that the formatStepLine function handles canceled steps.
-func TestProgressHandler_FormatStepLine_Canceled(t *testing.T) {
-	h := newProgressHandler(&bytes.Buffer{}, &bytes.Buffer{}, true)
-	ss := &stepState{
-		jobName:  "build",
-		stepName: "compile",
-		status:   core.StatusCanceled,
-	}
-	line := h.formatStepLine(ss)
-	if !strings.Contains(line, "⊗") {
-		t.Errorf("expected canceled icon, got: %s", line)
-	}
-	if !strings.Contains(line, "build/compile") {
-		t.Errorf("expected step name, got: %s", line)
-	}
-}
-
 func TestProgressHandler_JobFinishedFailed_NonTTY(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
 	_ = h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-1",
@@ -848,5 +971,173 @@ func TestProgressHandler_JobFinishedFailed_NonTTY(t *testing.T) {
 	}
 	if !strings.Contains(output, "compilation error") {
 		t.Errorf("expected error message, got: %s", output)
+	}
+}
+
+// --- Terminal width tests ---
+
+func TestProgressHandler_TerminalWidthPadding_NonTTY(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(40)
+
+	h.PrintSummary(&core.PipelineResult{
+		PipelineID: "pipe-1",
+		Status:     core.StatusSuccess,
+		Duration:   1 * time.Second,
+		Jobs: []core.JobResult{
+			{JobName: "build", Status: core.StatusSuccess, Duration: 1 * time.Second},
+		},
+	})
+
+	output := out.String()
+	// With width=40, padWidth = 30; job name "build" should be padded.
+	if !strings.Contains(output, "build") {
+		t.Errorf("expected job name, got: %s", output)
+	}
+}
+
+func TestProgressHandler_TerminalWidthPadding_TTY(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(40)
+
+	h.PrintSummary(&core.PipelineResult{
+		PipelineID: "pipe-1",
+		Status:     core.StatusSuccess,
+		Duration:   1 * time.Second,
+		Jobs: []core.JobResult{
+			{JobName: "build", Status: core.StatusSuccess, Duration: 1 * time.Second},
+		},
+	})
+
+	output := out.String()
+	if !strings.Contains(output, "build") {
+		t.Errorf("expected job name, got: %s", output)
+	}
+}
+
+func TestTruncateANSI(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		width int
+		want  string
+	}{
+		{
+			name:  "no truncation needed",
+			input: "hello",
+			width: 10,
+			want:  "hello",
+		},
+		{
+			name:  "truncate plain text",
+			input: "hello world",
+			width: 5,
+			want:  "hello",
+		},
+		{
+			name:  "preserve ANSI codes",
+			input: "\033[32mhello\033[0m world",
+			width: 5,
+			want:  "\033[32mhello\033[0m",
+		},
+		{
+			name:  "zero width",
+			input: "hello",
+			width: 0,
+			want:  "hello",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateANSI(tt.input, tt.width)
+			if got != tt.want {
+				t.Errorf("truncateANSI(%q, %d) = %q, want %q", tt.input, tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
+// --- SetJobDependsOn tests ---
+
+func TestProgressHandler_SetJobDependsOn(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
+
+	h.SetJobDependsOn("deploy", []string{"build", "test"})
+
+	h.mu.Lock()
+	js, ok := h.jobs["deploy"]
+	h.mu.Unlock()
+
+	if !ok {
+		t.Fatal("expected deploy job to be registered")
+	}
+	if len(js.dependsOn) != 2 {
+		t.Errorf("expected 2 deps, got %d", len(js.dependsOn))
+	}
+}
+
+func TestProgressHandler_WaitingDeps_TTY(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
+
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+
+	h.SetJobDependsOn("deploy", []string{"build"})
+
+	// Trigger redraw — deploy should show waiting
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+
+	output := out.String()
+	if !strings.Contains(output, "waiting for build") {
+		t.Errorf("expected 'waiting for build', got: %s", output)
+	}
+}
+
+func TestProgressHandler_StreamingLogsTTY(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:      core.EventStepStarted,
+		JobName:   "build",
+		StepName:  "compile",
+		Timestamp: time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventStepLog,
+		JobName:  "build",
+		StepName: "compile",
+		LogData:  []byte("building binary\n"),
+	})
+	output := out.String()
+	// TTY redraws should include the log line under the running job
+	if !strings.Contains(output, "building binary") {
+		t.Errorf("expected streaming log in TTY output, got: %s", output)
+	}
+	if !strings.Contains(output, "[compile]") {
+		t.Errorf("expected step prefix [compile], got: %s", output)
 	}
 }
