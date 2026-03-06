@@ -88,7 +88,7 @@ func (s *Server) Start(ctx context.Context) error {
 	s.logger.Info("starting server", "addr", s.cfg.Addr)
 
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return err
+		return fmt.Errorf("HTTP server error: %w", err)
 	}
 
 	return nil

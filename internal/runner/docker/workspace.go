@@ -61,7 +61,7 @@ func createTar(srcDir string) (io.Reader, error) {
 
 	err := filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("accessing %s: %w", path, err)
 		}
 
 		// Get path relative to srcDir.

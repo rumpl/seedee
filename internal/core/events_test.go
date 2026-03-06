@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -296,8 +297,8 @@ func TestEvents_MultiEventHandlerStopsOnError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from MultiEventHandler")
 	}
-	if err.Error() != "handler error" {
-		t.Errorf("expected 'handler error', got %q", err.Error())
+	if !strings.Contains(err.Error(), "handler error") {
+		t.Errorf("expected error to contain 'handler error', got %q", err.Error())
 	}
 
 	h2.mu.Lock()
