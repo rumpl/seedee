@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -79,8 +78,8 @@ func (h *CIServiceHandler) RunPipeline(
 		close(run.done)
 	}()
 
-	// 5. Create log writer that streams to client
-	logWriter := &streamLogWriter{
+	// 5. Create event handler that streams to client
+	eventHandler := &streamEventHandler{
 		stream:     stream,
 		pipelineID: pipeline.ID,
 	}
@@ -96,8 +95,8 @@ func (h *CIServiceHandler) RunPipeline(
 
 	// 7. Create and run engine
 	engine := &core.Engine{
-		Runner:    runner,
-		LogWriter: logWriter,
+		Runner:       runner,
+		EventHandler: eventHandler,
 	}
 
 	// Send pipeline started event
@@ -217,25 +216,53 @@ func (h *CIServiceHandler) PruneOldRuns(maxAge time.Duration) {
 	}
 }
 
-// streamLogWriter implements core.LogWriter and routes log output to a
+// streamEventHandler implements core.EventHandler and routes events to a
 // ConnectRPC server stream as RunPipelineEvent messages.
-type streamLogWriter struct {
+type streamEventHandler struct {
 	stream     *connect.ServerStream[seedeev1.RunPipelineEvent]
 	pipelineID string
 	mu         sync.Mutex // protect concurrent stream writes
 }
 
-func (w *streamLogWriter) WriteLog(jobName, stepName string, data []byte, isStderr bool) error {
+func (w *streamEventHandler) HandleEvent(event core.Event) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	return w.stream.Send(&seedeev1.RunPipelineEvent{
+	protoEvent := &seedeev1.RunPipelineEvent{
 		PipelineId: w.pipelineID,
-		Type:       seedeev1.EventType_EVENT_TYPE_STEP_LOG,
-		Timestamp:  timestamppb.New(time.Now()),
-		JobName:    jobName,
-		StepName:   stepName,
-		LogData:    data,
-		IsStderr:   isStderr,
-	})
+		Timestamp:  timestamppb.New(event.Timestamp),
+		JobName:    event.JobName,
+		StepName:   event.StepName,
+		Status:     StatusToProto(event.Status),
+		Error:      event.Error,
+	}
+
+	switch event.Type {
+	case core.EventPipelineStarted:
+		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_PIPELINE_STARTED
+	case core.EventPipelineFinished:
+		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_PIPELINE_FINISHED
+		protoEvent.Duration = durationpb.New(event.Duration)
+	case core.EventJobStarted:
+		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_JOB_STARTED
+	case core.EventJobFinished:
+		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_JOB_FINISHED
+		protoEvent.Duration = durationpb.New(event.Duration)
+	case core.EventJobSkipped:
+		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_JOB_SKIPPED
+	case core.EventStepStarted:
+		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_STEP_STARTED
+	case core.EventStepFinished:
+		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_STEP_FINISHED
+		protoEvent.Duration = durationpb.New(event.Duration)
+		protoEvent.ExitCode = int32(event.ExitCode)
+	case core.EventStepLog:
+		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_STEP_LOG
+		protoEvent.LogData = event.LogData
+		protoEvent.IsStderr = event.IsStderr
+	default:
+		return nil
+	}
+
+	return w.stream.Send(protoEvent)
 }
