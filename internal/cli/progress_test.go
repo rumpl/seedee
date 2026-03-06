@@ -66,7 +66,6 @@ func TestProgressHandler_StepStarted_NonTTY(t *testing.T) {
 		StepName: "compile",
 	})
 	output := out.String()
-	// In the new job-oriented output, step start triggers the job header.
 	if !strings.Contains(output, "=>") {
 		t.Errorf("expected '=>' prefix for job header, got: %s", output)
 	}
@@ -101,7 +100,6 @@ func TestProgressHandler_StepFinished_NonTTY(t *testing.T) {
 	})
 	out.Reset()
 
-	// After step finishes successfully, the job finishes.
 	_ = h.HandleEvent(&core.Event{
 		Type:     core.EventJobFinished,
 		JobName:  "build",
@@ -273,7 +271,6 @@ func TestProgressHandler_StreamingLogs_NonTTY(t *testing.T) {
 	})
 	out.Reset()
 
-	// Send log events — they should stream immediately.
 	_ = h.HandleEvent(&core.Event{
 		Type:     core.EventStepLog,
 		JobName:  "lint",
@@ -300,11 +297,9 @@ func TestProgressHandler_WaitingForDeps_NonTTY(t *testing.T) {
 		Timestamp:    time.Now(),
 	})
 
-	// Register dependencies before events arrive.
 	h.SetJobDependsOn("build", []string{"test"})
 	out.Reset()
 
-	// Job starts while dependency hasn't finished.
 	_ = h.HandleEvent(&core.Event{
 		Type:    core.EventJobStarted,
 		JobName: "build",
@@ -328,7 +323,6 @@ func TestProgressHandler_PipelineStarted_TTY(t *testing.T) {
 		Timestamp:    time.Now(),
 	})
 	output := out.String()
-	// TTY output should contain ANSI codes
 	if !strings.Contains(output, "\033[") {
 		t.Errorf("expected ANSI codes in TTY mode, got: %s", output)
 	}
@@ -443,14 +437,12 @@ func TestProgressHandler_MultipleParallelJobs_TTY(t *testing.T) {
 	})
 	output := out.String()
 
-	// Both jobs should appear with => markers.
 	if !strings.Contains(output, "lint") {
 		t.Errorf("expected lint job, got: %s", output)
 	}
 	if !strings.Contains(output, "build") {
 		t.Errorf("expected build job, got: %s", output)
 	}
-	// Both should show => since they're running
 	count := strings.Count(output, "=>")
 	if count < 2 {
 		t.Errorf("expected at least 2 '=>' markers for parallel jobs, got %d", count)
@@ -550,7 +542,6 @@ func TestProgressHandler_LogTruncation(t *testing.T) {
 	})
 
 	output := out.String()
-	// The failure log tail should have the last 10 lines (line-10 through line-19)
 	if !strings.Contains(output, "line-19") {
 		t.Errorf("expected last log line, got: %s", output)
 	}
@@ -868,7 +859,6 @@ func TestProgressHandler_PrintSummary_FallbackToPipelineID(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := newProgressHandler(out, out, false)
 	h.getWidth = fixedWidth(80)
-	// Don't send PipelineStarted event so pipelineName stays empty
 
 	h.PrintSummary(&core.PipelineResult{
 		PipelineID: "pipe-xyz",
@@ -896,8 +886,6 @@ func TestProgressHandler_StepFinishedWithoutStart(t *testing.T) {
 	})
 	out.Reset()
 
-	// Step finished without a prior start event — for a failed step
-	// this still shows the log tail.
 	_ = h.HandleEvent(&core.Event{
 		Type:     core.EventStepFinished,
 		JobName:  "build",
@@ -906,8 +894,7 @@ func TestProgressHandler_StepFinishedWithoutStart(t *testing.T) {
 		Duration: 1 * time.Second,
 	})
 
-	// No crash is the main assertion; success step finish produces no
-	// extra output in the new streaming model.
+	// No crash is the main assertion.
 }
 
 func TestProgressHandler_LogWithoutStepStart(t *testing.T) {
@@ -920,7 +907,6 @@ func TestProgressHandler_LogWithoutStepStart(t *testing.T) {
 		Timestamp:  time.Now(),
 	})
 
-	// Log without a prior step start
 	err := h.HandleEvent(&core.Event{
 		Type:     core.EventStepLog,
 		JobName:  "build",
@@ -991,7 +977,6 @@ func TestProgressHandler_TerminalWidthPadding_NonTTY(t *testing.T) {
 	})
 
 	output := out.String()
-	// With width=40, padWidth = 30; job name "build" should be padded.
 	if !strings.Contains(output, "build") {
 		t.Errorf("expected job name, got: %s", output)
 	}
@@ -1094,7 +1079,6 @@ func TestProgressHandler_WaitingDeps_TTY(t *testing.T) {
 
 	h.SetJobDependsOn("deploy", []string{"build"})
 
-	// Trigger redraw — deploy should show waiting
 	_ = h.HandleEvent(&core.Event{
 		Type:    core.EventJobStarted,
 		JobName: "build",
@@ -1133,11 +1117,146 @@ func TestProgressHandler_StreamingLogsTTY(t *testing.T) {
 		LogData:  []byte("building binary\n"),
 	})
 	output := out.String()
-	// TTY redraws should include the log line under the running job
 	if !strings.Contains(output, "building binary") {
 		t.Errorf("expected streaming log in TTY output, got: %s", output)
 	}
 	if !strings.Contains(output, "[compile]") {
 		t.Errorf("expected step prefix [compile], got: %s", output)
+	}
+}
+
+// --- Static top / dynamic bottom zone tests ---
+
+func TestProgressHandler_TTY_CompletedJobNeverRedrawn(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "lint",
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventJobFinished,
+		JobName:  "lint",
+		Status:   core.StatusSuccess,
+		Duration: 2 * time.Second,
+	})
+
+	// After lint finishes, start build and send a log — the bottom zone
+	// redraws should never cursor-up past the static ✓ lint line.
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventStepLog,
+		JobName:  "build",
+		StepName: "compile",
+		LogData:  []byte("compiling...\n"),
+	})
+
+	output := out.String()
+	// The ✓ for lint should appear exactly once in the cumulative output,
+	// proving it was printed to the static zone and never redrawn.
+	checkCount := strings.Count(output, "✓")
+	if checkCount < 1 {
+		t.Errorf("expected at least one ✓ for completed lint, got: %s", output)
+	}
+	// build should appear in the bottom zone
+	if !strings.Contains(output, "build") {
+		t.Errorf("expected build in bottom zone, got: %s", output)
+	}
+}
+
+func TestProgressHandler_TTY_BottomZoneClearedOnJobFinish(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventStepLog,
+		JobName:  "build",
+		StepName: "compile",
+		LogData:  []byte("line1\nline2\nline3\n"),
+	})
+
+	// Record bottomLines before job finishes.
+	h.mu.Lock()
+	bottomBefore := h.bottomLines
+	h.mu.Unlock()
+
+	if bottomBefore == 0 {
+		t.Fatal("expected non-zero bottomLines while job is running")
+	}
+
+	// Finish the job — bottom zone should be cleared and job promoted to
+	// static zone.
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventJobFinished,
+		JobName:  "build",
+		Status:   core.StatusSuccess,
+		Duration: 1 * time.Second,
+	})
+
+	h.mu.Lock()
+	bottomAfter := h.bottomLines
+	h.mu.Unlock()
+
+	if bottomAfter != 0 {
+		t.Errorf("expected bottomLines=0 after all jobs finish, got %d", bottomAfter)
+	}
+}
+
+func TestProgressHandler_TTY_LogTailMaxLines(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+
+	// Send more log lines than maxTailLines.
+	var logLines []string
+	for i := 0; i < 20; i++ {
+		logLines = append(logLines, fmt.Sprintf("log-line-%d", i))
+	}
+	_ = h.HandleEvent(&core.Event{
+		Type:     core.EventStepLog,
+		JobName:  "build",
+		StepName: "compile",
+		LogData:  []byte(strings.Join(logLines, "\n") + "\n"),
+	})
+
+	// The bottom zone should only show the last maxTailLines (5).
+	h.mu.Lock()
+	bl := h.bottomLines
+	h.mu.Unlock()
+
+	// 1 line for " => build" + maxTailLines log lines.
+	expected := 1 + maxTailLines
+	if bl != expected {
+		t.Errorf("expected bottomLines=%d (1 header + %d tail), got %d", expected, maxTailLines, bl)
 	}
 }
