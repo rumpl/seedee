@@ -1,4 +1,4 @@
-.PHONY: all build test lint lint-fix proto clean
+.PHONY: all build test lint lint-fix proto clean test-e2e test-e2e-remote
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -35,3 +35,10 @@ proto-lint:
 clean:
 	rm -rf bin/
 	find gen/ -type f ! -name '.gitkeep' -delete 2>/dev/null || true
+
+.PHONY: test-e2e-remote
+test-e2e-remote: build
+	go test -tags=e2e -v -timeout=5m ./test/ -run TestE2E_Remote
+
+.PHONY: test-e2e
+test-e2e: test-e2e-remote

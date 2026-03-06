@@ -1,0 +1,15 @@
+pipeline:
+  name: failure-test
+  jobs:
+    will-fail:
+      image: alpine:latest
+      steps:
+        - name: fail
+          run: exit 1
+    depends-on-fail:
+      image: alpine:latest
+      depends_on:
+        - will-fail
+      steps:
+        - name: should-skip
+          run: echo "should not run"

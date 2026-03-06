@@ -42,7 +42,7 @@ func TestRunCmd_LoadsConfigAndRunsLocal(t *testing.T) {
 	}
 }
 
-func TestRunCmd_RemoteNotImplemented(t *testing.T) {
+func TestRunCmd_RemoteConnectionFailure(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".seedee.yml")
 	content := `pipeline:
@@ -59,12 +59,14 @@ func TestRunCmd_RemoteNotImplemented(t *testing.T) {
 	}
 
 	root := NewRootCmd()
-	root.SetArgs([]string{"run", "--config", configPath, "--server", "localhost:8080"})
+	root.SetArgs([]string{"run", "--config", configPath, "--server", "127.0.0.1:1"})
 	err := root.Execute()
 	if err == nil {
-		t.Fatal("expected error for remote execution")
+		t.Fatal("expected error for remote execution against unreachable server")
 	}
-	if !strings.Contains(err.Error(), "not yet implemented") {
-		t.Errorf("expected 'not yet implemented' error for remote, got: %v", err)
+	// Should get a connection-related error
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "connect") && !strings.Contains(errMsg, "server") && !strings.Contains(errMsg, "unavailable") {
+		t.Errorf("expected connection-related error, got: %v", err)
 	}
 }

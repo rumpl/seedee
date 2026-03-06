@@ -1,0 +1,13 @@
+pipeline:
+  name: parallel-test
+  jobs:
+    job-a:
+      image: alpine:latest
+      steps:
+        - name: greet-a
+          run: echo "Job A" && sleep 2
+    job-b:
+      image: alpine:latest
+      steps:
+        - name: greet-b
+          run: echo "Job B" && sleep 2
