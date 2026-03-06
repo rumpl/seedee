@@ -33,6 +33,12 @@ func (c *Client) Close() error {
 	return c.cli.Close()
 }
 
+// Ping checks if the Docker daemon is reachable.
+func (c *Client) Ping(ctx context.Context) error {
+	_, err := c.cli.Ping(ctx)
+	return err
+}
+
 // PullImage pulls a Docker image, writing progress to the given writer.
 func (c *Client) PullImage(ctx context.Context, ref string, output io.Writer) error {
 	reader, err := c.cli.ImagePull(ctx, ref, image.PullOptions{})
