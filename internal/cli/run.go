@@ -72,21 +72,16 @@ func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 	})
 
 	// 4. Create event handler for terminal output
-	eventHandler := &terminalEventHandler{
-		out:     os.Stdout,
-		errOut:  os.Stderr,
-		verbose: verbose,
+	handler := &terminalEventHandler{
+		out:    os.Stdout,
+		errOut: os.Stderr,
+		isTTY:  isTerminal(),
 	}
 
 	// 5. Create and run engine
 	engine := &core.Engine{
 		Runner:       runner,
-		EventHandler: eventHandler,
-	}
-
-	fmt.Fprintf(os.Stdout, "▶ Pipeline %q started\n", pipeline.Name)
-	for _, job := range pipeline.Jobs {
-		fmt.Fprintf(os.Stdout, "  ▶ Job %q (%s, %d steps)\n", job.Name, job.Image, len(job.Steps))
+		EventHandler: handler,
 	}
 
 	result, err := engine.Execute(ctx, pipeline)
@@ -95,7 +90,7 @@ func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 	}
 
 	// 6. Print summary
-	printPipelineSummary(os.Stdout, result)
+	handler.PrintSummary(result)
 
 	// 7. Exit with appropriate code
 	if result.Status != core.StatusSuccess {
@@ -120,9 +115,9 @@ func runRemote(ctx context.Context, pipeline *core.Pipeline, addr string) error 
 
 	// 4. Create terminal event handler
 	handler := &terminalEventHandler{
-		out:     os.Stdout,
-		errOut:  os.Stderr,
-		verbose: verbose,
+		out:    os.Stdout,
+		errOut: os.Stderr,
+		isTTY:  isTerminal(),
 	}
 
 	// 5. Read events from stream and display them

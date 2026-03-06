@@ -100,6 +100,7 @@ func (h *CIServiceHandler) RunPipeline(
 		EventHandler: eventHandler,
 	}
 
+	// Send events via the engine's EventHandler — no manual sends needed
 	result, err := engine.Execute(runCtx, pipeline)
 	if err != nil {
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("executing pipeline: %w", err))
@@ -192,20 +193,20 @@ type streamEventHandler struct {
 	mu         sync.Mutex // protect concurrent stream writes
 }
 
-func (w *streamEventHandler) HandleEvent(event core.Event) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+func (h *streamEventHandler) HandleEvent(event core.Event) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	protoEvent := &seedeev1.RunPipelineEvent{
-		PipelineId: w.pipelineID,
+		PipelineId: h.pipelineID,
 		Timestamp:  timestamppb.New(event.Timestamp),
 		JobName:    event.JobName,
 		StepName:   event.StepName,
-		Status:     StatusToProto(event.Status),
-		Error:      event.Error,
-		ExitCode:   int32(event.ExitCode),
 		LogData:    event.LogData,
 		IsStderr:   event.IsStderr,
+		Status:     StatusToProto(event.Status),
+		ExitCode:   int32(event.ExitCode),
+		Error:      event.Error,
 	}
 
 	if event.Duration > 0 {
@@ -231,5 +232,5 @@ func (w *streamEventHandler) HandleEvent(event core.Event) error {
 		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_STEP_LOG
 	}
 
-	return w.stream.Send(protoEvent)
+	return h.stream.Send(protoEvent)
 }
