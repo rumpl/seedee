@@ -1,15 +1,19 @@
 pipeline:
   name: failure-test
   jobs:
-    will-fail:
+    pass:
       image: alpine:latest
       steps:
-        - name: fail
+        - name: ok
+          run: echo "this passes"
+    fail:
+      image: alpine:latest
+      steps:
+        - name: bad
           run: exit 1
-    depends-on-fail:
+    skipped:
       image: alpine:latest
-      depends_on:
-        - will-fail
+      depends_on: [fail]
       steps:
-        - name: should-skip
-          run: echo "should not run"
+        - name: never-runs
+          run: echo "should not see this"

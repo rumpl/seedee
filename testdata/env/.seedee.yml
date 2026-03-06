@@ -1,0 +1,17 @@
+pipeline:
+  name: env-test
+  env:
+    GLOBAL_VAR: "global"
+  jobs:
+    env-check:
+      image: alpine:latest
+      env:
+        JOB_VAR: "job-level"
+      steps:
+        - name: check-env
+          run: |
+            echo "GLOBAL=$GLOBAL_VAR"
+            echo "JOB=$JOB_VAR"
+            echo "STEP=$STEP_VAR"
+          env:
+            STEP_VAR: "step-level"

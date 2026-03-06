@@ -426,6 +426,11 @@ func (e *Engine) executeJob(ctx context.Context, pipeline *Pipeline, job *Job) J
 	}
 }
 
+// maxLogChunkSize is the maximum size of a single log event payload.
+// Large writes are split into chunks of this size to keep protobuf messages
+// reasonably sized and avoid memory pressure on the gRPC transport.
+const maxLogChunkSize = 64 * 1024 // 64KB per message
+
 // eventLogAdapter implements io.Writer and routes writes to an EventHandler as EventStepLog events.
 type eventLogAdapter struct {
 	handler      EventHandler
@@ -437,9 +442,21 @@ type eventLogAdapter struct {
 }
 
 func (l *eventLogAdapter) Write(p []byte) (n int, err error) {
-	if l.handler != nil {
-		data := make([]byte, len(p))
-		copy(data, p)
+	if l.handler == nil {
+		return len(p), nil
+	}
+
+	for len(p) > 0 {
+		chunk := p
+		if len(chunk) > maxLogChunkSize {
+			chunk = p[:maxLogChunkSize]
+		}
+		p = p[len(chunk):]
+
+		// Copy the byte slice — the caller (e.g. Docker SDK) may reuse the buffer.
+		data := make([]byte, len(chunk))
+		copy(data, chunk)
+
 		if err := l.handler.HandleEvent(Event{
 			Type:         EventStepLog,
 			Timestamp:    time.Now(),
@@ -450,8 +467,9 @@ func (l *eventLogAdapter) Write(p []byte) (n int, err error) {
 			LogData:      data,
 			IsStderr:     l.isStderr,
 		}); err != nil {
-			return 0, err
+			return n, err
 		}
+		n += len(chunk)
 	}
-	return len(p), nil
+	return n, nil
 }

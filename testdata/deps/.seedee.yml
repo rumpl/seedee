@@ -1,0 +1,20 @@
+pipeline:
+  name: deps-test
+  jobs:
+    build:
+      image: alpine:latest
+      steps:
+        - name: compile
+          run: echo "built" > /workspace/artifact.txt
+    test:
+      image: alpine:latest
+      depends_on: [build]
+      steps:
+        - name: verify
+          run: echo "testing..."
+    deploy:
+      image: alpine:latest
+      depends_on: [test]
+      steps:
+        - name: ship
+          run: echo "deploying..."

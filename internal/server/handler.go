@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	seedeev1 "github.com/rumpl/seedee/gen/seedee/v1"
 	"github.com/rumpl/seedee/internal/core"
@@ -79,10 +77,9 @@ func (h *CIServiceHandler) RunPipeline(
 		close(run.done)
 	}()
 
-	// 5. Create event handler that streams to client
+	// 5. Create event handler that streams events to the client
 	eventHandler := &streamEventHandler{
-		stream:     stream,
-		pipelineID: pipeline.ID,
+		stream: stream,
 	}
 
 	// 6. Create Docker runner
@@ -188,49 +185,17 @@ func (h *CIServiceHandler) PruneOldRuns(maxAge time.Duration) {
 // streamEventHandler implements core.EventHandler and routes events to a
 // ConnectRPC server stream as RunPipelineEvent messages.
 type streamEventHandler struct {
-	stream     *connect.ServerStream[seedeev1.RunPipelineEvent]
-	pipelineID string
-	mu         sync.Mutex // protect concurrent stream writes
+	stream *connect.ServerStream[seedeev1.RunPipelineEvent]
+	mu     sync.Mutex // protect concurrent stream writes
 }
 
+// HandleEvent converts a core.Event to protobuf and sends it immediately
+// on the gRPC stream. No buffering — each event is flushed as a separate
+// HTTP/2 data frame.
 func (h *streamEventHandler) HandleEvent(event core.Event) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	protoEvent := &seedeev1.RunPipelineEvent{
-		PipelineId: h.pipelineID,
-		Timestamp:  timestamppb.New(event.Timestamp),
-		JobName:    event.JobName,
-		StepName:   event.StepName,
-		LogData:    event.LogData,
-		IsStderr:   event.IsStderr,
-		Status:     StatusToProto(event.Status),
-		ExitCode:   int32(event.ExitCode),
-		Error:      event.Error,
-	}
-
-	if event.Duration > 0 {
-		protoEvent.Duration = durationpb.New(event.Duration)
-	}
-
-	switch event.Type {
-	case core.EventPipelineStarted:
-		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_PIPELINE_STARTED
-	case core.EventPipelineFinished:
-		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_PIPELINE_FINISHED
-	case core.EventJobStarted:
-		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_JOB_STARTED
-	case core.EventJobFinished:
-		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_JOB_FINISHED
-	case core.EventJobSkipped:
-		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_JOB_SKIPPED
-	case core.EventStepStarted:
-		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_STEP_STARTED
-	case core.EventStepFinished:
-		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_STEP_FINISHED
-	case core.EventStepLog:
-		protoEvent.Type = seedeev1.EventType_EVENT_TYPE_STEP_LOG
-	}
-
+	protoEvent := EventToProto(event)
 	return h.stream.Send(protoEvent)
 }
