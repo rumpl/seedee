@@ -1,40 +1,26 @@
 pipeline:
-  name: my-app-ci
+  name: seedee-ci
   env:
-    GO_VERSION: "1.22"
     CGO_ENABLED: "0"
+    GOFLAGS: "-mod=mod"
   jobs:
-    build:
-      image: golang:1.22
-      env:
-        GOOS: linux
-        GOARCH: amd64
-      steps:
-        - name: Download dependencies
-          run: go mod download
-        - name: Build binary
-          run: go build -o /workspace/bin/app ./cmd/app
-    test:
-      image: golang:1.22
-      depends_on:
-        - build
-      steps:
-        - name: Run unit tests
-          run: go test -v -race ./...
-        - name: Run integration tests
-          run: go test -v -tags=integration ./...
     lint:
       image: golangci/golangci-lint:latest
       steps:
+        - name: Download dependencies
+          run: cd /workspace && go mod download
         - name: Run linter
-          run: golangci-lint run ./...
-    deploy:
-      image: alpine:latest
+          run: cd /workspace && golangci-lint run ./...
+    test:
+      image: golang:1.24
+      steps:
+        - name: Run unit tests
+          run: cd /workspace && go test ./...
+    build:
+      image: golang:1.24
       depends_on:
         - test
         - lint
       steps:
-        - name: Deploy
-          run: echo "Deploying..."
-          env:
-            DEPLOY_TOKEN: "${DEPLOY_TOKEN}"
+        - name: Build binaries
+          run: cd /workspace && go build -o /workspace/bin/seedee ./cmd/seedee && go build -o /workspace/bin/seedeed ./cmd/seedeed
