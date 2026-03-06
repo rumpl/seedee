@@ -12,12 +12,12 @@ pipeline:
         - name: Run linter
           run: cd /workspace && golangci-lint run ./...
     test:
-      image: golang:1.24
+      image: golang:1.26
       steps:
         - name: Run unit tests
           run: cd /workspace && go test ./...
     build:
-      image: golang:1.24
+      image: golang:1.26
       depends_on:
         - test
         - lint
