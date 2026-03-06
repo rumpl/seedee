@@ -147,20 +147,74 @@ func (h *CIServiceHandler) RunPipeline(
 	return nil
 }
 
-// GetPipelineStatus is not yet implemented.
+// GetPipelineStatus returns the current state of a running or completed pipeline.
 func (h *CIServiceHandler) GetPipelineStatus(
 	_ context.Context,
-	_ *connect.Request[seedeev1.GetPipelineStatusRequest],
+	req *connect.Request[seedeev1.GetPipelineStatusRequest],
 ) (*connect.Response[seedeev1.GetPipelineStatusResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errGetPipelineStatusNotImplemented)
+	if req.Msg.PipelineId == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("pipeline_id is required"))
+	}
+
+	h.mu.RLock()
+	run, ok := h.pipelines[req.Msg.PipelineId]
+	h.mu.RUnlock()
+
+	if !ok {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("pipeline %q not found", req.Msg.PipelineId))
+	}
+
+	resp := PipelineStatusToProto(run.pipeline)
+	return connect.NewResponse(resp), nil
 }
 
-// CancelPipeline is not yet implemented.
+// CancelPipeline requests cancellation of a running pipeline.
 func (h *CIServiceHandler) CancelPipeline(
 	_ context.Context,
-	_ *connect.Request[seedeev1.CancelPipelineRequest],
+	req *connect.Request[seedeev1.CancelPipelineRequest],
 ) (*connect.Response[seedeev1.CancelPipelineResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errCancelPipelineNotImplemented)
+	if req.Msg.PipelineId == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("pipeline_id is required"))
+	}
+
+	h.mu.RLock()
+	run, ok := h.pipelines[req.Msg.PipelineId]
+	h.mu.RUnlock()
+
+	if !ok {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("pipeline %q not found", req.Msg.PipelineId))
+	}
+
+	// Check if already finished
+	select {
+	case <-run.done:
+		return connect.NewResponse(&seedeev1.CancelPipelineResponse{
+			Canceled: false,
+			Message:  "pipeline already completed",
+		}), nil
+	default:
+	}
+
+	// Cancel the pipeline's context
+	run.cancel()
+
+	return connect.NewResponse(&seedeev1.CancelPipelineResponse{
+		Canceled: true,
+		Message:  fmt.Sprintf("pipeline %q cancellation requested", req.Msg.PipelineId),
+	}), nil
+}
+
+// PruneOldRuns removes completed pipeline runs older than maxAge.
+func (h *CIServiceHandler) PruneOldRuns(maxAge time.Duration) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	cutoff := time.Now().Add(-maxAge)
+	for id, run := range h.pipelines {
+		if !run.pipeline.EndedAt.IsZero() && run.pipeline.EndedAt.Before(cutoff) {
+			delete(h.pipelines, id)
+		}
+	}
 }
 
 // streamLogWriter implements core.LogWriter and routes log output to a
