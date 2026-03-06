@@ -1,0 +1,8 @@
+pipeline:
+  name: simple-test
+  jobs:
+    hello:
+      image: alpine:latest
+      steps:
+        - name: greet
+          run: echo "Hello from seedee!"

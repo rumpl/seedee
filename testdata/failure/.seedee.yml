@@ -1,0 +1,19 @@
+pipeline:
+  name: failure-test
+  jobs:
+    pass:
+      image: alpine:latest
+      steps:
+        - name: ok
+          run: echo "this passes"
+    fail:
+      image: alpine:latest
+      steps:
+        - name: bad
+          run: exit 1
+    skipped:
+      image: alpine:latest
+      depends_on: [fail]
+      steps:
+        - name: never-runs
+          run: echo "should not see this"

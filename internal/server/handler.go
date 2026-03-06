@@ -79,8 +79,8 @@ func (h *CIServiceHandler) RunPipeline(
 		close(run.done)
 	}()
 
-	// 5. Create log writer that streams to client
-	logWriter := &streamLogWriter{
+	// 5. Create event handler that streams to client
+	eventHandler := &streamEventHandler{
 		stream:     stream,
 		pipelineID: pipeline.ID,
 	}
@@ -96,8 +96,8 @@ func (h *CIServiceHandler) RunPipeline(
 
 	// 7. Create and run engine
 	engine := &core.Engine{
-		Runner:    runner,
-		LogWriter: logWriter,
+		Runner:       runner,
+		EventHandler: eventHandler,
 	}
 
 	// Send pipeline started event
@@ -217,25 +217,57 @@ func (h *CIServiceHandler) PruneOldRuns(maxAge time.Duration) {
 	}
 }
 
-// streamLogWriter implements core.LogWriter and routes log output to a
+// streamEventHandler implements core.EventHandler and routes events to a
 // ConnectRPC server stream as RunPipelineEvent messages.
-type streamLogWriter struct {
+type streamEventHandler struct {
 	stream     *connect.ServerStream[seedeev1.RunPipelineEvent]
 	pipelineID string
 	mu         sync.Mutex // protect concurrent stream writes
 }
 
-func (w *streamLogWriter) WriteLog(jobName, stepName string, data []byte, isStderr bool) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+func (h *streamEventHandler) HandleEvent(event core.Event) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-	return w.stream.Send(&seedeev1.RunPipelineEvent{
-		PipelineId: w.pipelineID,
-		Type:       seedeev1.EventType_EVENT_TYPE_STEP_LOG,
-		Timestamp:  timestamppb.New(time.Now()),
-		JobName:    jobName,
-		StepName:   stepName,
-		LogData:    data,
-		IsStderr:   isStderr,
-	})
+	protoEvent := &seedeev1.RunPipelineEvent{
+		PipelineId: h.pipelineID,
+		Type:       coreEventTypeToProto(event.Type),
+		Timestamp:  timestamppb.New(event.Timestamp),
+		JobName:    event.JobName,
+		StepName:   event.StepName,
+		LogData:    event.LogData,
+		IsStderr:   event.IsStderr,
+		Status:     StatusToProto(event.Status),
+		ExitCode:   int32(event.ExitCode),
+		Error:      event.Error,
+	}
+	if event.Duration > 0 {
+		protoEvent.Duration = durationpb.New(event.Duration)
+	}
+
+	return h.stream.Send(protoEvent)
+}
+
+// coreEventTypeToProto converts a core.EventType to a protobuf EventType.
+func coreEventTypeToProto(t core.EventType) seedeev1.EventType {
+	switch t {
+	case core.EventPipelineStarted:
+		return seedeev1.EventType_EVENT_TYPE_PIPELINE_STARTED
+	case core.EventPipelineFinished:
+		return seedeev1.EventType_EVENT_TYPE_PIPELINE_FINISHED
+	case core.EventJobStarted:
+		return seedeev1.EventType_EVENT_TYPE_JOB_STARTED
+	case core.EventJobFinished:
+		return seedeev1.EventType_EVENT_TYPE_JOB_FINISHED
+	case core.EventJobSkipped:
+		return seedeev1.EventType_EVENT_TYPE_JOB_SKIPPED
+	case core.EventStepStarted:
+		return seedeev1.EventType_EVENT_TYPE_STEP_STARTED
+	case core.EventStepFinished:
+		return seedeev1.EventType_EVENT_TYPE_STEP_FINISHED
+	case core.EventStepLog:
+		return seedeev1.EventType_EVENT_TYPE_STEP_LOG
+	default:
+		return seedeev1.EventType_EVENT_TYPE_UNSPECIFIED
+	}
 }
