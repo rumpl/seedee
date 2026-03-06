@@ -30,6 +30,7 @@ Run locally (default) or against a remote seedee server.`,
 		newRunCmd(),
 		newStatusCmd(),
 		newCancelCmd(),
+		newListCmd(),
 		newVersionCmd(),
 	)
 

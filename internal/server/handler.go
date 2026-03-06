@@ -169,6 +169,34 @@ func (h *CIServiceHandler) CancelPipeline(
 	}), nil
 }
 
+// ListPipelines returns summaries of all known pipeline runs, optionally
+// filtered by status.
+func (h *CIServiceHandler) ListPipelines(
+	_ context.Context,
+	req *connect.Request[seedeev1.ListPipelinesRequest],
+) (*connect.Response[seedeev1.ListPipelinesResponse], error) {
+	filter := req.Msg.GetStatusFilter()
+
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	summaries := make([]*seedeev1.PipelineSummary, 0, len(h.pipelines))
+	for _, run := range h.pipelines {
+		p := run.pipeline
+		protoStatus := StatusToProto(p.Status)
+
+		if filter != seedeev1.Status_STATUS_UNSPECIFIED && protoStatus != filter {
+			continue
+		}
+
+		summaries = append(summaries, PipelineSummaryToProto(p))
+	}
+
+	return connect.NewResponse(&seedeev1.ListPipelinesResponse{
+		Pipelines: summaries,
+	}), nil
+}
+
 // PruneOldRuns removes completed pipeline runs older than maxAge.
 func (h *CIServiceHandler) PruneOldRuns(maxAge time.Duration) {
 	h.mu.Lock()

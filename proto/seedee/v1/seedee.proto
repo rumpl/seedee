@@ -18,6 +18,10 @@ service CIService {
 
   // CancelPipeline requests cancellation of a running pipeline.
   rpc CancelPipeline(CancelPipelineRequest) returns (CancelPipelineResponse);
+
+  // ListPipelines returns summaries of all known pipeline runs,
+  // optionally filtered by status.
+  rpc ListPipelines(ListPipelinesRequest) returns (ListPipelinesResponse);
 }
 
 // RunPipelineRequest is the request message for RunPipeline.
@@ -142,6 +146,32 @@ message CancelPipelineResponse {
   bool canceled = 1;
   // Human-readable message.
   string message = 2;
+}
+
+// ListPipelinesRequest is the request for ListPipelines.
+message ListPipelinesRequest {
+  // Optional status filter. If STATUS_UNSPECIFIED, all pipelines are returned.
+  Status status_filter = 1;
+}
+
+// ListPipelinesResponse is the response for ListPipelines.
+message ListPipelinesResponse {
+  // Summaries of matching pipeline runs.
+  repeated PipelineSummary pipelines = 1;
+}
+
+// PipelineSummary is a brief overview of a pipeline run.
+message PipelineSummary {
+  // Pipeline run ID.
+  string pipeline_id = 1;
+  // Pipeline name.
+  string name = 2;
+  // Overall pipeline status.
+  Status status = 3;
+  // When the pipeline started.
+  google.protobuf.Timestamp started_at = 4;
+  // Total duration so far.
+  google.protobuf.Duration duration = 5;
 }
 
 // Status represents the execution state.

@@ -205,3 +205,28 @@ func stepStatusToProto(s *core.Step) *seedeev1.StepStatus {
 
 	return ss
 }
+
+// PipelineSummaryToProto converts a runtime Pipeline to a protobuf PipelineSummary.
+func PipelineSummaryToProto(p *core.Pipeline) *seedeev1.PipelineSummary {
+	if p == nil {
+		return nil
+	}
+
+	s := &seedeev1.PipelineSummary{
+		PipelineId: p.ID,
+		Name:       p.Name,
+		Status:     StatusToProto(p.Status),
+	}
+
+	if !p.StartedAt.IsZero() {
+		s.StartedAt = timestamppb.New(p.StartedAt)
+	}
+
+	if !p.EndedAt.IsZero() && !p.StartedAt.IsZero() {
+		s.Duration = durationpb.New(p.EndedAt.Sub(p.StartedAt))
+	} else if !p.StartedAt.IsZero() {
+		s.Duration = durationpb.New(time.Since(p.StartedAt))
+	}
+
+	return s
+}

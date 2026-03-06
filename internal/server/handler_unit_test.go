@@ -377,3 +377,149 @@ func TestGetPipelineStatus_ConcurrentAccess(t *testing.T) {
 		<-done
 	}
 }
+
+func TestListPipelines_Empty(t *testing.T) {
+	h := newTestHandler()
+
+	resp, err := h.ListPipelines(context.Background(), connect.NewRequest(&seedeev1.ListPipelinesRequest{}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Msg.Pipelines) != 0 {
+		t.Errorf("expected 0 pipelines, got %d", len(resp.Msg.Pipelines))
+	}
+}
+
+func TestListPipelines_ReturnsAll(t *testing.T) {
+	h := newTestHandler()
+
+	now := time.Now()
+	for i, status := range []core.Status{core.StatusRunning, core.StatusSuccess, core.StatusFailed} {
+		p := &core.Pipeline{
+			ID:        fmt.Sprintf("pipe-%d", i),
+			Name:      fmt.Sprintf("pipeline-%d", i),
+			Status:    status,
+			StartedAt: now,
+		}
+		if status != core.StatusRunning {
+			p.EndedAt = now.Add(10 * time.Second)
+		}
+		addTestPipeline(h, p, status != core.StatusRunning)
+	}
+
+	resp, err := h.ListPipelines(context.Background(), connect.NewRequest(&seedeev1.ListPipelinesRequest{}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Msg.Pipelines) != 3 {
+		t.Fatalf("expected 3 pipelines, got %d", len(resp.Msg.Pipelines))
+	}
+}
+
+func TestListPipelines_FilterByStatus(t *testing.T) {
+	h := newTestHandler()
+
+	now := time.Now()
+	statuses := []core.Status{core.StatusRunning, core.StatusSuccess, core.StatusFailed, core.StatusSuccess}
+	for i, status := range statuses {
+		p := &core.Pipeline{
+			ID:        fmt.Sprintf("pipe-%d", i),
+			Name:      fmt.Sprintf("pipeline-%d", i),
+			Status:    status,
+			StartedAt: now,
+		}
+		if status != core.StatusRunning {
+			p.EndedAt = now.Add(10 * time.Second)
+		}
+		addTestPipeline(h, p, status != core.StatusRunning)
+	}
+
+	// Filter for SUCCESS only
+	resp, err := h.ListPipelines(context.Background(), connect.NewRequest(&seedeev1.ListPipelinesRequest{
+		StatusFilter: seedeev1.Status_STATUS_SUCCESS,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Msg.Pipelines) != 2 {
+		t.Fatalf("expected 2 success pipelines, got %d", len(resp.Msg.Pipelines))
+	}
+
+	for _, p := range resp.Msg.Pipelines {
+		if p.Status != seedeev1.Status_STATUS_SUCCESS {
+			t.Errorf("expected STATUS_SUCCESS, got %v", p.Status)
+		}
+	}
+
+	// Filter for RUNNING only
+	resp, err = h.ListPipelines(context.Background(), connect.NewRequest(&seedeev1.ListPipelinesRequest{
+		StatusFilter: seedeev1.Status_STATUS_RUNNING,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Msg.Pipelines) != 1 {
+		t.Fatalf("expected 1 running pipeline, got %d", len(resp.Msg.Pipelines))
+	}
+
+	// Filter for CANCELED (none)
+	resp, err = h.ListPipelines(context.Background(), connect.NewRequest(&seedeev1.ListPipelinesRequest{
+		StatusFilter: seedeev1.Status_STATUS_CANCELED,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Msg.Pipelines) != 0 {
+		t.Fatalf("expected 0 canceled pipelines, got %d", len(resp.Msg.Pipelines))
+	}
+}
+
+func TestListPipelines_SummaryFields(t *testing.T) {
+	h := newTestHandler()
+
+	start := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+	end := start.Add(30 * time.Second)
+
+	p := &core.Pipeline{
+		ID:        "pipe-summary",
+		Name:      "my-pipeline",
+		Status:    core.StatusSuccess,
+		StartedAt: start,
+		EndedAt:   end,
+	}
+	addTestPipeline(h, p, true)
+
+	resp, err := h.ListPipelines(context.Background(), connect.NewRequest(&seedeev1.ListPipelinesRequest{}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Msg.Pipelines) != 1 {
+		t.Fatalf("expected 1 pipeline, got %d", len(resp.Msg.Pipelines))
+	}
+
+	s := resp.Msg.Pipelines[0]
+	if s.PipelineId != "pipe-summary" {
+		t.Errorf("PipelineId = %q, want %q", s.PipelineId, "pipe-summary")
+	}
+	if s.Name != "my-pipeline" {
+		t.Errorf("Name = %q, want %q", s.Name, "my-pipeline")
+	}
+	if s.Status != seedeev1.Status_STATUS_SUCCESS {
+		t.Errorf("Status = %v, want STATUS_SUCCESS", s.Status)
+	}
+	if s.StartedAt == nil {
+		t.Error("StartedAt should not be nil")
+	}
+	if s.Duration == nil {
+		t.Fatal("Duration should not be nil")
+	}
+	if s.Duration.AsDuration() != 30*time.Second {
+		t.Errorf("Duration = %v, want 30s", s.Duration.AsDuration())
+	}
+}
