@@ -22,15 +22,15 @@ var (
 
 // Server is an HTTP/2 server hosting ConnectRPC handlers.
 type Server struct {
-	addr    string
+	cfg     Config
 	handler *CIServiceHandler
 	logger  *slog.Logger
 }
 
-// NewServer creates a new Server that will listen on the given address.
-func NewServer(addr string, logger *slog.Logger) *Server {
+// NewServer creates a new Server with the given configuration and logger.
+func NewServer(cfg Config, logger *slog.Logger) *Server {
 	return &Server{
-		addr:    addr,
+		cfg:     cfg,
 		handler: NewCIServiceHandler(logger),
 		logger:  logger,
 	}
@@ -53,7 +53,7 @@ func (s *Server) Start(ctx context.Context) error {
 	h2cHandler := h2c.NewHandler(mux, &http2.Server{})
 
 	srv := &http.Server{
-		Addr:    s.addr,
+		Addr:    s.cfg.Addr,
 		Handler: h2cHandler,
 	}
 
@@ -69,7 +69,7 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}()
 
-	s.logger.Info("starting server", "addr", s.addr)
+	s.logger.Info("starting server", "addr", s.cfg.Addr)
 
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
