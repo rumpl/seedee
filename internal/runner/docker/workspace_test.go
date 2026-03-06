@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -163,6 +164,167 @@ func tarEntries(t *testing.T, r io.Reader) []string {
 	}
 
 	return names
+}
+
+func TestCreateTar_SkipsNodeModules(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, "index.js"), "console.log('hi')")
+	nm := filepath.Join(tmpDir, "node_modules", "pkg")
+	if err := os.MkdirAll(nm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(nm, "index.js"), "module.exports = {}")
+
+	reader, err := createTar(tmpDir)
+	if err != nil {
+		t.Fatalf("createTar: %v", err)
+	}
+
+	entries := tarEntries(t, reader)
+	for _, e := range entries {
+		if e == "node_modules" || strings.HasPrefix(e, "node_modules/") {
+			t.Fatalf("tar should not contain node_modules, found %q", e)
+		}
+	}
+	if len(entries) != 1 || entries[0] != "index.js" {
+		t.Fatalf("expected [index.js], got %v", entries)
+	}
+}
+
+func TestCreateTar_SkipsGitDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, "main.go"), "package main")
+	gitDir := filepath.Join(tmpDir, ".git", "objects")
+	if err := os.MkdirAll(gitDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(gitDir, "abc"), "blob")
+
+	reader, err := createTar(tmpDir)
+	if err != nil {
+		t.Fatalf("createTar: %v", err)
+	}
+
+	entries := tarEntries(t, reader)
+	for _, e := range entries {
+		if e == ".git" || strings.HasPrefix(e, ".git/") {
+			t.Fatalf("tar should not contain .git, found %q", e)
+		}
+	}
+}
+
+func TestCreateTar_SkipsBinAndGen(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, "main.go"), "package main")
+
+	for _, dir := range []string{"bin", "gen"} {
+		d := filepath.Join(tmpDir, dir)
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(d, "output"), "data")
+	}
+
+	reader, err := createTar(tmpDir)
+	if err != nil {
+		t.Fatalf("createTar: %v", err)
+	}
+
+	entries := tarEntries(t, reader)
+	if len(entries) != 1 || entries[0] != "main.go" {
+		t.Fatalf("expected [main.go], got %v", entries)
+	}
+}
+
+func TestCreateTar_SkipsNestedNodeModules(t *testing.T) {
+	tmpDir := t.TempDir()
+	front := filepath.Join(tmpDir, "frontend")
+	nm := filepath.Join(front, "node_modules", "pkg")
+	if err := os.MkdirAll(nm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(front, "index.js"), "app")
+	writeFile(t, filepath.Join(nm, "lib.js"), "lib")
+
+	reader, err := createTar(tmpDir)
+	if err != nil {
+		t.Fatalf("createTar: %v", err)
+	}
+
+	entries := tarEntries(t, reader)
+	sort.Strings(entries)
+
+	expected := []string{"frontend", "frontend/index.js"}
+	if len(entries) != len(expected) {
+		t.Fatalf("expected %v, got %v", expected, entries)
+	}
+	for i, e := range expected {
+		if entries[i] != e {
+			t.Errorf("entry %d: expected %q, got %q", i, e, entries[i])
+		}
+	}
+}
+
+func TestCreateTar_HandlesSymlinks(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, "real.txt"), "content")
+
+	// Create a symlink to a file.
+	if err := os.Symlink(
+		filepath.Join(tmpDir, "real.txt"),
+		filepath.Join(tmpDir, "link.txt"),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := createTar(tmpDir)
+	if err != nil {
+		t.Fatalf("createTar: %v", err)
+	}
+
+	entries := tarEntries(t, reader)
+	sort.Strings(entries)
+
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %v", entries)
+	}
+}
+
+func TestCreateTar_SkipsDirSymlinks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a real directory with a file.
+	realDir := filepath.Join(tmpDir, "realdir")
+	if err := os.MkdirAll(realDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(realDir, "file.txt"), "data")
+
+	// Create a symlink pointing to that directory.
+	if err := os.Symlink(realDir, filepath.Join(tmpDir, "linkdir")); err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := createTar(tmpDir)
+	if err != nil {
+		t.Fatalf("createTar: %v", err)
+	}
+
+	entries := tarEntries(t, reader)
+	sort.Strings(entries)
+
+	// linkdir should be skipped (directory symlink), but realdir and its
+	// contents should be present.
+	for _, e := range entries {
+		if e == "linkdir" || strings.HasPrefix(e, "linkdir/") {
+			t.Fatalf("tar should not contain directory symlink 'linkdir', found %q", e)
+		}
+	}
+
+	expected := []string{"realdir", "realdir/file.txt"}
+	if len(entries) != len(expected) {
+		t.Fatalf("expected %v, got %v", expected, entries)
+	}
 }
 
 // writeFile creates a file with the given content.
