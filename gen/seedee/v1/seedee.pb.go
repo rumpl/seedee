@@ -9,7 +9,10 @@ package seedeev1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -20,20 +23,1085 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Status represents the execution state.
+type Status int32
+
+const (
+	// Default value.
+	Status_STATUS_UNSPECIFIED Status = 0
+	// Waiting to start.
+	Status_STATUS_PENDING Status = 1
+	// Currently executing.
+	Status_STATUS_RUNNING Status = 2
+	// Completed successfully.
+	Status_STATUS_SUCCESS Status = 3
+	// Failed.
+	Status_STATUS_FAILED Status = 4
+	// Skipped due to dependency failure.
+	Status_STATUS_SKIPPED Status = 5
+	// Canceled by user.
+	Status_STATUS_CANCELED Status = 6
+)
+
+// Enum value maps for Status.
+var (
+	Status_name = map[int32]string{
+		0: "STATUS_UNSPECIFIED",
+		1: "STATUS_PENDING",
+		2: "STATUS_RUNNING",
+		3: "STATUS_SUCCESS",
+		4: "STATUS_FAILED",
+		5: "STATUS_SKIPPED",
+		6: "STATUS_CANCELED",
+	}
+	Status_value = map[string]int32{
+		"STATUS_UNSPECIFIED": 0,
+		"STATUS_PENDING":     1,
+		"STATUS_RUNNING":     2,
+		"STATUS_SUCCESS":     3,
+		"STATUS_FAILED":      4,
+		"STATUS_SKIPPED":     5,
+		"STATUS_CANCELED":    6,
+	}
+)
+
+func (x Status) Enum() *Status {
+	p := new(Status)
+	*p = x
+	return p
+}
+
+func (x Status) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Status) Descriptor() protoreflect.EnumDescriptor {
+	return file_seedee_v1_seedee_proto_enumTypes[0].Descriptor()
+}
+
+func (Status) Type() protoreflect.EnumType {
+	return &file_seedee_v1_seedee_proto_enumTypes[0]
+}
+
+func (x Status) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Status.Descriptor instead.
+func (Status) EnumDescriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{0}
+}
+
+// EventType identifies what kind of event occurred.
+type EventType int32
+
+const (
+	// Default value.
+	EventType_EVENT_TYPE_UNSPECIFIED EventType = 0
+	// Pipeline execution started.
+	EventType_EVENT_TYPE_PIPELINE_STARTED EventType = 1
+	// Pipeline execution finished.
+	EventType_EVENT_TYPE_PIPELINE_FINISHED EventType = 2
+	// Job started.
+	EventType_EVENT_TYPE_JOB_STARTED EventType = 3
+	// Job finished.
+	EventType_EVENT_TYPE_JOB_FINISHED EventType = 4
+	// Job was skipped.
+	EventType_EVENT_TYPE_JOB_SKIPPED EventType = 5
+	// Step started.
+	EventType_EVENT_TYPE_STEP_STARTED EventType = 6
+	// Step finished.
+	EventType_EVENT_TYPE_STEP_FINISHED EventType = 7
+	// Log output from a step.
+	EventType_EVENT_TYPE_STEP_LOG EventType = 8
+)
+
+// Enum value maps for EventType.
+var (
+	EventType_name = map[int32]string{
+		0: "EVENT_TYPE_UNSPECIFIED",
+		1: "EVENT_TYPE_PIPELINE_STARTED",
+		2: "EVENT_TYPE_PIPELINE_FINISHED",
+		3: "EVENT_TYPE_JOB_STARTED",
+		4: "EVENT_TYPE_JOB_FINISHED",
+		5: "EVENT_TYPE_JOB_SKIPPED",
+		6: "EVENT_TYPE_STEP_STARTED",
+		7: "EVENT_TYPE_STEP_FINISHED",
+		8: "EVENT_TYPE_STEP_LOG",
+	}
+	EventType_value = map[string]int32{
+		"EVENT_TYPE_UNSPECIFIED":       0,
+		"EVENT_TYPE_PIPELINE_STARTED":  1,
+		"EVENT_TYPE_PIPELINE_FINISHED": 2,
+		"EVENT_TYPE_JOB_STARTED":       3,
+		"EVENT_TYPE_JOB_FINISHED":      4,
+		"EVENT_TYPE_JOB_SKIPPED":       5,
+		"EVENT_TYPE_STEP_STARTED":      6,
+		"EVENT_TYPE_STEP_FINISHED":     7,
+		"EVENT_TYPE_STEP_LOG":          8,
+	}
+)
+
+func (x EventType) Enum() *EventType {
+	p := new(EventType)
+	*p = x
+	return p
+}
+
+func (x EventType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EventType) Descriptor() protoreflect.EnumDescriptor {
+	return file_seedee_v1_seedee_proto_enumTypes[1].Descriptor()
+}
+
+func (EventType) Type() protoreflect.EnumType {
+	return &file_seedee_v1_seedee_proto_enumTypes[1]
+}
+
+func (x EventType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use EventType.Descriptor instead.
+func (EventType) EnumDescriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{1}
+}
+
+// RunPipelineRequest is the request message for RunPipeline.
+type RunPipelineRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The pipeline definition to execute.
+	Pipeline      *PipelineDefinition `protobuf:"bytes,1,opt,name=pipeline,proto3" json:"pipeline,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunPipelineRequest) Reset() {
+	*x = RunPipelineRequest{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunPipelineRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunPipelineRequest) ProtoMessage() {}
+
+func (x *RunPipelineRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunPipelineRequest.ProtoReflect.Descriptor instead.
+func (*RunPipelineRequest) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *RunPipelineRequest) GetPipeline() *PipelineDefinition {
+	if x != nil {
+		return x.Pipeline
+	}
+	return nil
+}
+
+// PipelineDefinition describes a pipeline to run.
+type PipelineDefinition struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name of the pipeline.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Environment variables available to all jobs.
+	Env map[string]string `protobuf:"bytes,2,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Jobs to execute, keyed by job name.
+	Jobs          map[string]*JobDefinition `protobuf:"bytes,3,rep,name=jobs,proto3" json:"jobs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PipelineDefinition) Reset() {
+	*x = PipelineDefinition{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PipelineDefinition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PipelineDefinition) ProtoMessage() {}
+
+func (x *PipelineDefinition) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PipelineDefinition.ProtoReflect.Descriptor instead.
+func (*PipelineDefinition) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PipelineDefinition) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PipelineDefinition) GetEnv() map[string]string {
+	if x != nil {
+		return x.Env
+	}
+	return nil
+}
+
+func (x *PipelineDefinition) GetJobs() map[string]*JobDefinition {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
+// JobDefinition describes a single job within a pipeline.
+type JobDefinition struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Docker image to run the job in.
+	Image string `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`
+	// Names of jobs that must complete before this one starts.
+	DependsOn []string `protobuf:"bytes,2,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
+	// Environment variables for this job.
+	Env map[string]string `protobuf:"bytes,3,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Steps to execute sequentially.
+	Steps         []*StepDefinition `protobuf:"bytes,4,rep,name=steps,proto3" json:"steps,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JobDefinition) Reset() {
+	*x = JobDefinition{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JobDefinition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JobDefinition) ProtoMessage() {}
+
+func (x *JobDefinition) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JobDefinition.ProtoReflect.Descriptor instead.
+func (*JobDefinition) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *JobDefinition) GetImage() string {
+	if x != nil {
+		return x.Image
+	}
+	return ""
+}
+
+func (x *JobDefinition) GetDependsOn() []string {
+	if x != nil {
+		return x.DependsOn
+	}
+	return nil
+}
+
+func (x *JobDefinition) GetEnv() map[string]string {
+	if x != nil {
+		return x.Env
+	}
+	return nil
+}
+
+func (x *JobDefinition) GetSteps() []*StepDefinition {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+// StepDefinition describes a single step within a job.
+type StepDefinition struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Human-readable name for the step.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Shell command to execute.
+	Run string `protobuf:"bytes,2,opt,name=run,proto3" json:"run,omitempty"`
+	// Environment variables for this step.
+	Env           map[string]string `protobuf:"bytes,3,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StepDefinition) Reset() {
+	*x = StepDefinition{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StepDefinition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StepDefinition) ProtoMessage() {}
+
+func (x *StepDefinition) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StepDefinition.ProtoReflect.Descriptor instead.
+func (*StepDefinition) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *StepDefinition) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *StepDefinition) GetRun() string {
+	if x != nil {
+		return x.Run
+	}
+	return ""
+}
+
+func (x *StepDefinition) GetEnv() map[string]string {
+	if x != nil {
+		return x.Env
+	}
+	return nil
+}
+
+// RunPipelineEvent is streamed back to the client during execution.
+type RunPipelineEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ID of the pipeline run.
+	PipelineId string `protobuf:"bytes,1,opt,name=pipeline_id,json=pipelineId,proto3" json:"pipeline_id,omitempty"`
+	// Type of event.
+	Type EventType `protobuf:"varint,2,opt,name=type,proto3,enum=seedee.v1.EventType" json:"type,omitempty"`
+	// When the event occurred.
+	Timestamp *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Job name (populated for job-level and step-level events).
+	JobName string `protobuf:"bytes,4,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty"`
+	// Step name (populated for step-level events).
+	StepName string `protobuf:"bytes,5,opt,name=step_name,json=stepName,proto3" json:"step_name,omitempty"`
+	// Log output (populated for LOG events).
+	LogData []byte `protobuf:"bytes,6,opt,name=log_data,json=logData,proto3" json:"log_data,omitempty"`
+	// Whether log_data is from stderr.
+	IsStderr bool `protobuf:"varint,7,opt,name=is_stderr,json=isStderr,proto3" json:"is_stderr,omitempty"`
+	// Execution status (populated for FINISHED events).
+	Status Status `protobuf:"varint,8,opt,name=status,proto3,enum=seedee.v1.Status" json:"status,omitempty"`
+	// Process exit code (populated for step FINISHED events).
+	ExitCode int32 `protobuf:"varint,9,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	// Error message if any.
+	Error string `protobuf:"bytes,10,opt,name=error,proto3" json:"error,omitempty"`
+	// Duration of the completed operation.
+	Duration      *durationpb.Duration `protobuf:"bytes,11,opt,name=duration,proto3" json:"duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunPipelineEvent) Reset() {
+	*x = RunPipelineEvent{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunPipelineEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunPipelineEvent) ProtoMessage() {}
+
+func (x *RunPipelineEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunPipelineEvent.ProtoReflect.Descriptor instead.
+func (*RunPipelineEvent) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RunPipelineEvent) GetPipelineId() string {
+	if x != nil {
+		return x.PipelineId
+	}
+	return ""
+}
+
+func (x *RunPipelineEvent) GetType() EventType {
+	if x != nil {
+		return x.Type
+	}
+	return EventType_EVENT_TYPE_UNSPECIFIED
+}
+
+func (x *RunPipelineEvent) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+func (x *RunPipelineEvent) GetJobName() string {
+	if x != nil {
+		return x.JobName
+	}
+	return ""
+}
+
+func (x *RunPipelineEvent) GetStepName() string {
+	if x != nil {
+		return x.StepName
+	}
+	return ""
+}
+
+func (x *RunPipelineEvent) GetLogData() []byte {
+	if x != nil {
+		return x.LogData
+	}
+	return nil
+}
+
+func (x *RunPipelineEvent) GetIsStderr() bool {
+	if x != nil {
+		return x.IsStderr
+	}
+	return false
+}
+
+func (x *RunPipelineEvent) GetStatus() Status {
+	if x != nil {
+		return x.Status
+	}
+	return Status_STATUS_UNSPECIFIED
+}
+
+func (x *RunPipelineEvent) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *RunPipelineEvent) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *RunPipelineEvent) GetDuration() *durationpb.Duration {
+	if x != nil {
+		return x.Duration
+	}
+	return nil
+}
+
+// GetPipelineStatusRequest is the request for GetPipelineStatus.
+type GetPipelineStatusRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ID of the pipeline to query.
+	PipelineId    string `protobuf:"bytes,1,opt,name=pipeline_id,json=pipelineId,proto3" json:"pipeline_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPipelineStatusRequest) Reset() {
+	*x = GetPipelineStatusRequest{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPipelineStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPipelineStatusRequest) ProtoMessage() {}
+
+func (x *GetPipelineStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPipelineStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetPipelineStatusRequest) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetPipelineStatusRequest) GetPipelineId() string {
+	if x != nil {
+		return x.PipelineId
+	}
+	return ""
+}
+
+// GetPipelineStatusResponse is the response for GetPipelineStatus.
+type GetPipelineStatusResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Pipeline run ID.
+	PipelineId string `protobuf:"bytes,1,opt,name=pipeline_id,json=pipelineId,proto3" json:"pipeline_id,omitempty"`
+	// Pipeline name.
+	PipelineName string `protobuf:"bytes,2,opt,name=pipeline_name,json=pipelineName,proto3" json:"pipeline_name,omitempty"`
+	// Overall pipeline status.
+	Status Status `protobuf:"varint,3,opt,name=status,proto3,enum=seedee.v1.Status" json:"status,omitempty"`
+	// Status of each job.
+	Jobs []*JobStatus `protobuf:"bytes,4,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	// When the pipeline started.
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	// Total duration so far.
+	Duration      *durationpb.Duration `protobuf:"bytes,6,opt,name=duration,proto3" json:"duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPipelineStatusResponse) Reset() {
+	*x = GetPipelineStatusResponse{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPipelineStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPipelineStatusResponse) ProtoMessage() {}
+
+func (x *GetPipelineStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPipelineStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetPipelineStatusResponse) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetPipelineStatusResponse) GetPipelineId() string {
+	if x != nil {
+		return x.PipelineId
+	}
+	return ""
+}
+
+func (x *GetPipelineStatusResponse) GetPipelineName() string {
+	if x != nil {
+		return x.PipelineName
+	}
+	return ""
+}
+
+func (x *GetPipelineStatusResponse) GetStatus() Status {
+	if x != nil {
+		return x.Status
+	}
+	return Status_STATUS_UNSPECIFIED
+}
+
+func (x *GetPipelineStatusResponse) GetJobs() []*JobStatus {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
+func (x *GetPipelineStatusResponse) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *GetPipelineStatusResponse) GetDuration() *durationpb.Duration {
+	if x != nil {
+		return x.Duration
+	}
+	return nil
+}
+
+// JobStatus describes the current state of a job.
+type JobStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Job name.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Job status.
+	Status Status `protobuf:"varint,2,opt,name=status,proto3,enum=seedee.v1.Status" json:"status,omitempty"`
+	// Status of each step.
+	Steps []*StepStatus `protobuf:"bytes,3,rep,name=steps,proto3" json:"steps,omitempty"`
+	// Job duration.
+	Duration      *durationpb.Duration `protobuf:"bytes,4,opt,name=duration,proto3" json:"duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JobStatus) Reset() {
+	*x = JobStatus{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JobStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JobStatus) ProtoMessage() {}
+
+func (x *JobStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JobStatus.ProtoReflect.Descriptor instead.
+func (*JobStatus) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *JobStatus) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *JobStatus) GetStatus() Status {
+	if x != nil {
+		return x.Status
+	}
+	return Status_STATUS_UNSPECIFIED
+}
+
+func (x *JobStatus) GetSteps() []*StepStatus {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+func (x *JobStatus) GetDuration() *durationpb.Duration {
+	if x != nil {
+		return x.Duration
+	}
+	return nil
+}
+
+// StepStatus describes the current state of a step.
+type StepStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Step name.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Step status.
+	Status Status `protobuf:"varint,2,opt,name=status,proto3,enum=seedee.v1.Status" json:"status,omitempty"`
+	// Process exit code.
+	ExitCode int32 `protobuf:"varint,3,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	// Step duration.
+	Duration      *durationpb.Duration `protobuf:"bytes,4,opt,name=duration,proto3" json:"duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StepStatus) Reset() {
+	*x = StepStatus{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StepStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StepStatus) ProtoMessage() {}
+
+func (x *StepStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StepStatus.ProtoReflect.Descriptor instead.
+func (*StepStatus) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *StepStatus) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *StepStatus) GetStatus() Status {
+	if x != nil {
+		return x.Status
+	}
+	return Status_STATUS_UNSPECIFIED
+}
+
+func (x *StepStatus) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *StepStatus) GetDuration() *durationpb.Duration {
+	if x != nil {
+		return x.Duration
+	}
+	return nil
+}
+
+// CancelPipelineRequest is the request for CancelPipeline.
+type CancelPipelineRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ID of the pipeline to cancel.
+	PipelineId    string `protobuf:"bytes,1,opt,name=pipeline_id,json=pipelineId,proto3" json:"pipeline_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelPipelineRequest) Reset() {
+	*x = CancelPipelineRequest{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelPipelineRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelPipelineRequest) ProtoMessage() {}
+
+func (x *CancelPipelineRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelPipelineRequest.ProtoReflect.Descriptor instead.
+func (*CancelPipelineRequest) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CancelPipelineRequest) GetPipelineId() string {
+	if x != nil {
+		return x.PipelineId
+	}
+	return ""
+}
+
+// CancelPipelineResponse is the response for CancelPipeline.
+type CancelPipelineResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether the cancellation was accepted.
+	Canceled bool `protobuf:"varint,1,opt,name=canceled,proto3" json:"canceled,omitempty"`
+	// Human-readable message.
+	Message       string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelPipelineResponse) Reset() {
+	*x = CancelPipelineResponse{}
+	mi := &file_seedee_v1_seedee_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelPipelineResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelPipelineResponse) ProtoMessage() {}
+
+func (x *CancelPipelineResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_seedee_v1_seedee_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelPipelineResponse.ProtoReflect.Descriptor instead.
+func (*CancelPipelineResponse) Descriptor() ([]byte, []int) {
+	return file_seedee_v1_seedee_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *CancelPipelineResponse) GetCanceled() bool {
+	if x != nil {
+		return x.Canceled
+	}
+	return false
+}
+
+func (x *CancelPipelineResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_seedee_v1_seedee_proto protoreflect.FileDescriptor
 
 const file_seedee_v1_seedee_proto_rawDesc = "" +
 	"\n" +
-	"\x16seedee/v1/seedee.proto\x12\tseedee.v12\v\n" +
-	"\tCIServiceB0Z.github.com/rumpl/seedee/gen/seedee/v1;seedeev1b\x06proto3"
+	"\x16seedee/v1/seedee.proto\x12\tseedee.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\"O\n" +
+	"\x12RunPipelineRequest\x129\n" +
+	"\bpipeline\x18\x01 \x01(\v2\x1d.seedee.v1.PipelineDefinitionR\bpipeline\"\xaa\x02\n" +
+	"\x12PipelineDefinition\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x128\n" +
+	"\x03env\x18\x02 \x03(\v2&.seedee.v1.PipelineDefinition.EnvEntryR\x03env\x12;\n" +
+	"\x04jobs\x18\x03 \x03(\v2'.seedee.v1.PipelineDefinition.JobsEntryR\x04jobs\x1a6\n" +
+	"\bEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aQ\n" +
+	"\tJobsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12.\n" +
+	"\x05value\x18\x02 \x01(\v2\x18.seedee.v1.JobDefinitionR\x05value:\x028\x01\"\xe2\x01\n" +
+	"\rJobDefinition\x12\x14\n" +
+	"\x05image\x18\x01 \x01(\tR\x05image\x12\x1d\n" +
+	"\n" +
+	"depends_on\x18\x02 \x03(\tR\tdependsOn\x123\n" +
+	"\x03env\x18\x03 \x03(\v2!.seedee.v1.JobDefinition.EnvEntryR\x03env\x12/\n" +
+	"\x05steps\x18\x04 \x03(\v2\x19.seedee.v1.StepDefinitionR\x05steps\x1a6\n" +
+	"\bEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa4\x01\n" +
+	"\x0eStepDefinition\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
+	"\x03run\x18\x02 \x01(\tR\x03run\x124\n" +
+	"\x03env\x18\x03 \x03(\v2\".seedee.v1.StepDefinition.EnvEntryR\x03env\x1a6\n" +
+	"\bEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9c\x03\n" +
+	"\x10RunPipelineEvent\x12\x1f\n" +
+	"\vpipeline_id\x18\x01 \x01(\tR\n" +
+	"pipelineId\x12(\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x14.seedee.v1.EventTypeR\x04type\x128\n" +
+	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x19\n" +
+	"\bjob_name\x18\x04 \x01(\tR\ajobName\x12\x1b\n" +
+	"\tstep_name\x18\x05 \x01(\tR\bstepName\x12\x19\n" +
+	"\blog_data\x18\x06 \x01(\fR\alogData\x12\x1b\n" +
+	"\tis_stderr\x18\a \x01(\bR\bisStderr\x12)\n" +
+	"\x06status\x18\b \x01(\x0e2\x11.seedee.v1.StatusR\x06status\x12\x1b\n" +
+	"\texit_code\x18\t \x01(\x05R\bexitCode\x12\x14\n" +
+	"\x05error\x18\n" +
+	" \x01(\tR\x05error\x125\n" +
+	"\bduration\x18\v \x01(\v2\x19.google.protobuf.DurationR\bduration\";\n" +
+	"\x18GetPipelineStatusRequest\x12\x1f\n" +
+	"\vpipeline_id\x18\x01 \x01(\tR\n" +
+	"pipelineId\"\xa8\x02\n" +
+	"\x19GetPipelineStatusResponse\x12\x1f\n" +
+	"\vpipeline_id\x18\x01 \x01(\tR\n" +
+	"pipelineId\x12#\n" +
+	"\rpipeline_name\x18\x02 \x01(\tR\fpipelineName\x12)\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x11.seedee.v1.StatusR\x06status\x12(\n" +
+	"\x04jobs\x18\x04 \x03(\v2\x14.seedee.v1.JobStatusR\x04jobs\x129\n" +
+	"\n" +
+	"started_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x125\n" +
+	"\bduration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\bduration\"\xae\x01\n" +
+	"\tJobStatus\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x11.seedee.v1.StatusR\x06status\x12+\n" +
+	"\x05steps\x18\x03 \x03(\v2\x15.seedee.v1.StepStatusR\x05steps\x125\n" +
+	"\bduration\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\bduration\"\x9f\x01\n" +
+	"\n" +
+	"StepStatus\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x11.seedee.v1.StatusR\x06status\x12\x1b\n" +
+	"\texit_code\x18\x03 \x01(\x05R\bexitCode\x125\n" +
+	"\bduration\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\bduration\"8\n" +
+	"\x15CancelPipelineRequest\x12\x1f\n" +
+	"\vpipeline_id\x18\x01 \x01(\tR\n" +
+	"pipelineId\"N\n" +
+	"\x16CancelPipelineResponse\x12\x1a\n" +
+	"\bcanceled\x18\x01 \x01(\bR\bcanceled\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage*\x98\x01\n" +
+	"\x06Status\x12\x16\n" +
+	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eSTATUS_PENDING\x10\x01\x12\x12\n" +
+	"\x0eSTATUS_RUNNING\x10\x02\x12\x12\n" +
+	"\x0eSTATUS_SUCCESS\x10\x03\x12\x11\n" +
+	"\rSTATUS_FAILED\x10\x04\x12\x12\n" +
+	"\x0eSTATUS_SKIPPED\x10\x05\x12\x13\n" +
+	"\x0fSTATUS_CANCELED\x10\x06*\x93\x02\n" +
+	"\tEventType\x12\x1a\n" +
+	"\x16EVENT_TYPE_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bEVENT_TYPE_PIPELINE_STARTED\x10\x01\x12 \n" +
+	"\x1cEVENT_TYPE_PIPELINE_FINISHED\x10\x02\x12\x1a\n" +
+	"\x16EVENT_TYPE_JOB_STARTED\x10\x03\x12\x1b\n" +
+	"\x17EVENT_TYPE_JOB_FINISHED\x10\x04\x12\x1a\n" +
+	"\x16EVENT_TYPE_JOB_SKIPPED\x10\x05\x12\x1b\n" +
+	"\x17EVENT_TYPE_STEP_STARTED\x10\x06\x12\x1c\n" +
+	"\x18EVENT_TYPE_STEP_FINISHED\x10\a\x12\x17\n" +
+	"\x13EVENT_TYPE_STEP_LOG\x10\b2\x8f\x02\n" +
+	"\tCIService\x12K\n" +
+	"\vRunPipeline\x12\x1d.seedee.v1.RunPipelineRequest\x1a\x1b.seedee.v1.RunPipelineEvent0\x01\x12^\n" +
+	"\x11GetPipelineStatus\x12#.seedee.v1.GetPipelineStatusRequest\x1a$.seedee.v1.GetPipelineStatusResponse\x12U\n" +
+	"\x0eCancelPipeline\x12 .seedee.v1.CancelPipelineRequest\x1a!.seedee.v1.CancelPipelineResponseB0Z.github.com/rumpl/seedee/gen/seedee/v1;seedeev1b\x06proto3"
 
-var file_seedee_v1_seedee_proto_goTypes = []any{}
+var (
+	file_seedee_v1_seedee_proto_rawDescOnce sync.Once
+	file_seedee_v1_seedee_proto_rawDescData []byte
+)
+
+func file_seedee_v1_seedee_proto_rawDescGZIP() []byte {
+	file_seedee_v1_seedee_proto_rawDescOnce.Do(func() {
+		file_seedee_v1_seedee_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_seedee_v1_seedee_proto_rawDesc), len(file_seedee_v1_seedee_proto_rawDesc)))
+	})
+	return file_seedee_v1_seedee_proto_rawDescData
+}
+
+var file_seedee_v1_seedee_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_seedee_v1_seedee_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_seedee_v1_seedee_proto_goTypes = []any{
+	(Status)(0),                       // 0: seedee.v1.Status
+	(EventType)(0),                    // 1: seedee.v1.EventType
+	(*RunPipelineRequest)(nil),        // 2: seedee.v1.RunPipelineRequest
+	(*PipelineDefinition)(nil),        // 3: seedee.v1.PipelineDefinition
+	(*JobDefinition)(nil),             // 4: seedee.v1.JobDefinition
+	(*StepDefinition)(nil),            // 5: seedee.v1.StepDefinition
+	(*RunPipelineEvent)(nil),          // 6: seedee.v1.RunPipelineEvent
+	(*GetPipelineStatusRequest)(nil),  // 7: seedee.v1.GetPipelineStatusRequest
+	(*GetPipelineStatusResponse)(nil), // 8: seedee.v1.GetPipelineStatusResponse
+	(*JobStatus)(nil),                 // 9: seedee.v1.JobStatus
+	(*StepStatus)(nil),                // 10: seedee.v1.StepStatus
+	(*CancelPipelineRequest)(nil),     // 11: seedee.v1.CancelPipelineRequest
+	(*CancelPipelineResponse)(nil),    // 12: seedee.v1.CancelPipelineResponse
+	nil,                               // 13: seedee.v1.PipelineDefinition.EnvEntry
+	nil,                               // 14: seedee.v1.PipelineDefinition.JobsEntry
+	nil,                               // 15: seedee.v1.JobDefinition.EnvEntry
+	nil,                               // 16: seedee.v1.StepDefinition.EnvEntry
+	(*timestamppb.Timestamp)(nil),     // 17: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),       // 18: google.protobuf.Duration
+}
 var file_seedee_v1_seedee_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	3,  // 0: seedee.v1.RunPipelineRequest.pipeline:type_name -> seedee.v1.PipelineDefinition
+	13, // 1: seedee.v1.PipelineDefinition.env:type_name -> seedee.v1.PipelineDefinition.EnvEntry
+	14, // 2: seedee.v1.PipelineDefinition.jobs:type_name -> seedee.v1.PipelineDefinition.JobsEntry
+	15, // 3: seedee.v1.JobDefinition.env:type_name -> seedee.v1.JobDefinition.EnvEntry
+	5,  // 4: seedee.v1.JobDefinition.steps:type_name -> seedee.v1.StepDefinition
+	16, // 5: seedee.v1.StepDefinition.env:type_name -> seedee.v1.StepDefinition.EnvEntry
+	1,  // 6: seedee.v1.RunPipelineEvent.type:type_name -> seedee.v1.EventType
+	17, // 7: seedee.v1.RunPipelineEvent.timestamp:type_name -> google.protobuf.Timestamp
+	0,  // 8: seedee.v1.RunPipelineEvent.status:type_name -> seedee.v1.Status
+	18, // 9: seedee.v1.RunPipelineEvent.duration:type_name -> google.protobuf.Duration
+	0,  // 10: seedee.v1.GetPipelineStatusResponse.status:type_name -> seedee.v1.Status
+	9,  // 11: seedee.v1.GetPipelineStatusResponse.jobs:type_name -> seedee.v1.JobStatus
+	17, // 12: seedee.v1.GetPipelineStatusResponse.started_at:type_name -> google.protobuf.Timestamp
+	18, // 13: seedee.v1.GetPipelineStatusResponse.duration:type_name -> google.protobuf.Duration
+	0,  // 14: seedee.v1.JobStatus.status:type_name -> seedee.v1.Status
+	10, // 15: seedee.v1.JobStatus.steps:type_name -> seedee.v1.StepStatus
+	18, // 16: seedee.v1.JobStatus.duration:type_name -> google.protobuf.Duration
+	0,  // 17: seedee.v1.StepStatus.status:type_name -> seedee.v1.Status
+	18, // 18: seedee.v1.StepStatus.duration:type_name -> google.protobuf.Duration
+	4,  // 19: seedee.v1.PipelineDefinition.JobsEntry.value:type_name -> seedee.v1.JobDefinition
+	2,  // 20: seedee.v1.CIService.RunPipeline:input_type -> seedee.v1.RunPipelineRequest
+	7,  // 21: seedee.v1.CIService.GetPipelineStatus:input_type -> seedee.v1.GetPipelineStatusRequest
+	11, // 22: seedee.v1.CIService.CancelPipeline:input_type -> seedee.v1.CancelPipelineRequest
+	6,  // 23: seedee.v1.CIService.RunPipeline:output_type -> seedee.v1.RunPipelineEvent
+	8,  // 24: seedee.v1.CIService.GetPipelineStatus:output_type -> seedee.v1.GetPipelineStatusResponse
+	12, // 25: seedee.v1.CIService.CancelPipeline:output_type -> seedee.v1.CancelPipelineResponse
+	23, // [23:26] is the sub-list for method output_type
+	20, // [20:23] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_seedee_v1_seedee_proto_init() }
@@ -46,13 +1114,15 @@ func file_seedee_v1_seedee_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_seedee_v1_seedee_proto_rawDesc), len(file_seedee_v1_seedee_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   0,
+			NumEnums:      2,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_seedee_v1_seedee_proto_goTypes,
 		DependencyIndexes: file_seedee_v1_seedee_proto_depIdxs,
+		EnumInfos:         file_seedee_v1_seedee_proto_enumTypes,
+		MessageInfos:      file_seedee_v1_seedee_proto_msgTypes,
 	}.Build()
 	File_seedee_v1_seedee_proto = out.File
 	file_seedee_v1_seedee_proto_goTypes = nil

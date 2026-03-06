@@ -4,7 +4,182 @@ package seedee.v1;
 
 option go_package = "github.com/rumpl/seedee/gen/seedee/v1;seedeev1";
 
-// Stub service — will be filled in later
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+// CIService is the main API for the seedee CI system.
 service CIService {
-  // Placeholder
+  // RunPipeline submits a pipeline for execution and streams back
+  // real-time events (logs, status changes) until completion.
+  rpc RunPipeline(RunPipelineRequest) returns (stream RunPipelineEvent);
+
+  // GetPipelineStatus returns the current state of a running or completed pipeline.
+  rpc GetPipelineStatus(GetPipelineStatusRequest) returns (GetPipelineStatusResponse);
+
+  // CancelPipeline requests cancellation of a running pipeline.
+  rpc CancelPipeline(CancelPipelineRequest) returns (CancelPipelineResponse);
+}
+
+// RunPipelineRequest is the request message for RunPipeline.
+message RunPipelineRequest {
+  // The pipeline definition to execute.
+  PipelineDefinition pipeline = 1;
+}
+
+// PipelineDefinition describes a pipeline to run.
+message PipelineDefinition {
+  // Name of the pipeline.
+  string name = 1;
+  // Environment variables available to all jobs.
+  map<string, string> env = 2;
+  // Jobs to execute, keyed by job name.
+  map<string, JobDefinition> jobs = 3;
+}
+
+// JobDefinition describes a single job within a pipeline.
+message JobDefinition {
+  // Docker image to run the job in.
+  string image = 1;
+  // Names of jobs that must complete before this one starts.
+  repeated string depends_on = 2;
+  // Environment variables for this job.
+  map<string, string> env = 3;
+  // Steps to execute sequentially.
+  repeated StepDefinition steps = 4;
+}
+
+// StepDefinition describes a single step within a job.
+message StepDefinition {
+  // Human-readable name for the step.
+  string name = 1;
+  // Shell command to execute.
+  string run = 2;
+  // Environment variables for this step.
+  map<string, string> env = 3;
+}
+
+// RunPipelineEvent is streamed back to the client during execution.
+message RunPipelineEvent {
+  // ID of the pipeline run.
+  string pipeline_id = 1;
+  // Type of event.
+  EventType type = 2;
+  // When the event occurred.
+  google.protobuf.Timestamp timestamp = 3;
+  // Job name (populated for job-level and step-level events).
+  string job_name = 4;
+  // Step name (populated for step-level events).
+  string step_name = 5;
+  // Log output (populated for LOG events).
+  bytes log_data = 6;
+  // Whether log_data is from stderr.
+  bool is_stderr = 7;
+  // Execution status (populated for FINISHED events).
+  Status status = 8;
+  // Process exit code (populated for step FINISHED events).
+  int32 exit_code = 9;
+  // Error message if any.
+  string error = 10;
+  // Duration of the completed operation.
+  google.protobuf.Duration duration = 11;
+}
+
+// GetPipelineStatusRequest is the request for GetPipelineStatus.
+message GetPipelineStatusRequest {
+  // ID of the pipeline to query.
+  string pipeline_id = 1;
+}
+
+// GetPipelineStatusResponse is the response for GetPipelineStatus.
+message GetPipelineStatusResponse {
+  // Pipeline run ID.
+  string pipeline_id = 1;
+  // Pipeline name.
+  string pipeline_name = 2;
+  // Overall pipeline status.
+  Status status = 3;
+  // Status of each job.
+  repeated JobStatus jobs = 4;
+  // When the pipeline started.
+  google.protobuf.Timestamp started_at = 5;
+  // Total duration so far.
+  google.protobuf.Duration duration = 6;
+}
+
+// JobStatus describes the current state of a job.
+message JobStatus {
+  // Job name.
+  string name = 1;
+  // Job status.
+  Status status = 2;
+  // Status of each step.
+  repeated StepStatus steps = 3;
+  // Job duration.
+  google.protobuf.Duration duration = 4;
+}
+
+// StepStatus describes the current state of a step.
+message StepStatus {
+  // Step name.
+  string name = 1;
+  // Step status.
+  Status status = 2;
+  // Process exit code.
+  int32 exit_code = 3;
+  // Step duration.
+  google.protobuf.Duration duration = 4;
+}
+
+// CancelPipelineRequest is the request for CancelPipeline.
+message CancelPipelineRequest {
+  // ID of the pipeline to cancel.
+  string pipeline_id = 1;
+}
+
+// CancelPipelineResponse is the response for CancelPipeline.
+message CancelPipelineResponse {
+  // Whether the cancellation was accepted.
+  bool canceled = 1;
+  // Human-readable message.
+  string message = 2;
+}
+
+// Status represents the execution state.
+enum Status {
+  // Default value.
+  STATUS_UNSPECIFIED = 0;
+  // Waiting to start.
+  STATUS_PENDING = 1;
+  // Currently executing.
+  STATUS_RUNNING = 2;
+  // Completed successfully.
+  STATUS_SUCCESS = 3;
+  // Failed.
+  STATUS_FAILED = 4;
+  // Skipped due to dependency failure.
+  STATUS_SKIPPED = 5;
+  // Canceled by user.
+  STATUS_CANCELED = 6;
+}
+
+// EventType identifies what kind of event occurred.
+enum EventType {
+  // Default value.
+  EVENT_TYPE_UNSPECIFIED = 0;
+  // Pipeline execution started.
+  EVENT_TYPE_PIPELINE_STARTED = 1;
+  // Pipeline execution finished.
+  EVENT_TYPE_PIPELINE_FINISHED = 2;
+  // Job started.
+  EVENT_TYPE_JOB_STARTED = 3;
+  // Job finished.
+  EVENT_TYPE_JOB_FINISHED = 4;
+  // Job was skipped.
+  EVENT_TYPE_JOB_SKIPPED = 5;
+  // Step started.
+  EVENT_TYPE_STEP_STARTED = 6;
+  // Step finished.
+  EVENT_TYPE_STEP_FINISHED = 7;
+  // Log output from a step.
+  EVENT_TYPE_STEP_LOG = 8;
 }
