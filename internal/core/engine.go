@@ -11,11 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// LogWriter receives log output from step execution.
-type LogWriter interface {
-	WriteLog(jobName, stepName string, data []byte, isStderr bool) error
-}
-
 // EngineRunner defines the interface the engine uses to execute jobs and steps.
 // It mirrors the runner.Runner interface to avoid circular imports.
 type EngineRunner interface {
@@ -26,8 +21,15 @@ type EngineRunner interface {
 
 // Engine orchestrates pipeline execution using a Runner and the DAG scheduler.
 type Engine struct {
-	Runner    EngineRunner
-	LogWriter LogWriter
+	Runner       EngineRunner
+	EventHandler EventHandler
+}
+
+// emit sends an event to the EventHandler if one is set.
+func (e *Engine) emit(event Event) {
+	if e.EventHandler != nil {
+		_ = e.EventHandler.HandleEvent(event)
+	}
 }
 
 // Execute runs the given pipeline to completion, returning a PipelineResult.
@@ -35,12 +37,30 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 	pipeline.Status = StatusRunning
 	pipeline.StartedAt = time.Now()
 
+	e.emit(Event{
+		Type:         EventPipelineStarted,
+		Timestamp:    pipeline.StartedAt,
+		PipelineID:   pipeline.ID,
+		PipelineName: pipeline.Name,
+	})
+
 	// Schedule the pipeline into execution groups
 	groups, err := Schedule(pipeline)
 	if err != nil {
 		pipeline.Status = StatusFailed
 		pipeline.EndedAt = time.Now()
 		pipeline.Error = err
+
+		e.emit(Event{
+			Type:         EventPipelineFinished,
+			Timestamp:    pipeline.EndedAt,
+			PipelineID:   pipeline.ID,
+			PipelineName: pipeline.Name,
+			Status:       StatusFailed,
+			Error:        err.Error(),
+			Duration:     pipeline.EndedAt.Sub(pipeline.StartedAt),
+		})
+
 		return &PipelineResult{
 			PipelineID: pipeline.ID,
 			Status:     StatusFailed,
@@ -95,6 +115,16 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 				if shouldSkip {
 					job.Status = StatusSkipped
 					job.EndedAt = time.Now()
+
+					e.emit(Event{
+						Type:         EventJobSkipped,
+						Timestamp:    job.EndedAt,
+						PipelineID:   pipeline.ID,
+						PipelineName: pipeline.Name,
+						JobName:      job.Name,
+						Status:       StatusSkipped,
+					})
+
 					failedMu.Lock()
 					failedJobs[job.Name] = true
 					failedMu.Unlock()
@@ -107,7 +137,7 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 					return nil
 				}
 
-				result := e.executeJob(gctx, job)
+				result := e.executeJob(gctx, pipeline, job)
 
 				jobResultsMu.Lock()
 				jobResults[job.Name] = result
@@ -158,19 +188,43 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 		}
 	}
 
+	pipelineDuration := pipeline.EndedAt.Sub(pipeline.StartedAt)
+
+	errStr := ""
+	if pipelineErr != nil {
+		errStr = pipelineErr.Error()
+	}
+	e.emit(Event{
+		Type:         EventPipelineFinished,
+		Timestamp:    pipeline.EndedAt,
+		PipelineID:   pipeline.ID,
+		PipelineName: pipeline.Name,
+		Status:       pipelineStatus,
+		Error:        errStr,
+		Duration:     pipelineDuration,
+	})
+
 	return &PipelineResult{
 		PipelineID: pipeline.ID,
 		Status:     pipelineStatus,
 		Jobs:       orderedResults,
-		Duration:   pipeline.EndedAt.Sub(pipeline.StartedAt),
+		Duration:   pipelineDuration,
 		Error:      pipelineErr,
 	}, nil
 }
 
 // executeJob runs a single job: Setup, Steps (sequentially), Teardown.
-func (e *Engine) executeJob(ctx context.Context, job *Job) JobResult {
+func (e *Engine) executeJob(ctx context.Context, pipeline *Pipeline, job *Job) JobResult {
 	job.Status = StatusRunning
 	job.StartedAt = time.Now()
+
+	e.emit(Event{
+		Type:         EventJobStarted,
+		Timestamp:    job.StartedAt,
+		PipelineID:   pipeline.ID,
+		PipelineName: pipeline.Name,
+		JobName:      job.Name,
+	})
 
 	var stepResults []StepResult
 
@@ -181,6 +235,19 @@ func (e *Engine) executeJob(ctx context.Context, job *Job) JobResult {
 		job.Error = err
 		// Teardown always called
 		_ = e.Runner.Teardown(ctx, job)
+
+		jobDuration := job.EndedAt.Sub(job.StartedAt)
+		e.emit(Event{
+			Type:         EventJobFinished,
+			Timestamp:    job.EndedAt,
+			PipelineID:   pipeline.ID,
+			PipelineName: pipeline.Name,
+			JobName:      job.Name,
+			Status:       StatusFailed,
+			Error:        fmt.Sprintf("setup failed: %v", err),
+			Duration:     jobDuration,
+		})
+
 		return JobResult{
 			JobName: job.Name,
 			Status:  StatusFailed,
@@ -212,21 +279,35 @@ func (e *Engine) executeJob(ctx context.Context, job *Job) JobResult {
 		step.Status = StatusRunning
 		step.StartedAt = time.Now()
 
-		stdout := &logAdapter{
-			writer:   e.LogWriter,
-			job:      job.Name,
-			step:     step.Name,
-			isStderr: false,
+		e.emit(Event{
+			Type:         EventStepStarted,
+			Timestamp:    step.StartedAt,
+			PipelineID:   pipeline.ID,
+			PipelineName: pipeline.Name,
+			JobName:      job.Name,
+			StepName:     step.Name,
+		})
+
+		stdout := &eventLogAdapter{
+			handler:      e.EventHandler,
+			pipelineID:   pipeline.ID,
+			pipelineName: pipeline.Name,
+			job:          job.Name,
+			step:         step.Name,
+			isStderr:     false,
 		}
-		stderr := &logAdapter{
-			writer:   e.LogWriter,
-			job:      job.Name,
-			step:     step.Name,
-			isStderr: true,
+		stderr := &eventLogAdapter{
+			handler:      e.EventHandler,
+			pipelineID:   pipeline.ID,
+			pipelineName: pipeline.Name,
+			job:          job.Name,
+			step:         step.Name,
+			isStderr:     true,
 		}
 
 		result, err := e.Runner.RunStep(ctx, job, step, stdout, stderr)
 		step.EndedAt = time.Now()
+		stepDuration := step.EndedAt.Sub(step.StartedAt)
 
 		if err != nil {
 			step.Status = StatusFailed
@@ -235,6 +316,20 @@ func (e *Engine) executeJob(ctx context.Context, job *Job) JobResult {
 				ExitCode: -1,
 				Error:    err,
 			})
+
+			e.emit(Event{
+				Type:         EventStepFinished,
+				Timestamp:    step.EndedAt,
+				PipelineID:   pipeline.ID,
+				PipelineName: pipeline.Name,
+				JobName:      job.Name,
+				StepName:     step.Name,
+				Status:       StatusFailed,
+				ExitCode:     -1,
+				Error:        err.Error(),
+				Duration:     stepDuration,
+			})
+
 			jobFailed = true
 			break
 		}
@@ -244,18 +339,61 @@ func (e *Engine) executeJob(ctx context.Context, job *Job) JobResult {
 			step.Status = StatusFailed
 			step.Error = fmt.Errorf("exit code %d", result.ExitCode)
 			stepResults = append(stepResults, *result)
+
+			e.emit(Event{
+				Type:         EventStepFinished,
+				Timestamp:    step.EndedAt,
+				PipelineID:   pipeline.ID,
+				PipelineName: pipeline.Name,
+				JobName:      job.Name,
+				StepName:     step.Name,
+				Status:       StatusFailed,
+				ExitCode:     result.ExitCode,
+				Error:        fmt.Sprintf("exit code %d", result.ExitCode),
+				Duration:     stepDuration,
+			})
+
 			jobFailed = true
 			break
 		}
 
 		step.Status = StatusSuccess
 		stepResults = append(stepResults, *result)
+
+		e.emit(Event{
+			Type:         EventStepFinished,
+			Timestamp:    step.EndedAt,
+			PipelineID:   pipeline.ID,
+			PipelineName: pipeline.Name,
+			JobName:      job.Name,
+			StepName:     step.Name,
+			Status:       StatusSuccess,
+			ExitCode:     0,
+			Duration:     stepDuration,
+		})
 	}
 
 	job.EndedAt = time.Now()
+	jobDuration := job.EndedAt.Sub(job.StartedAt)
 
 	if jobFailed {
 		job.Status = StatusFailed
+
+		errStr := ""
+		if job.Error != nil {
+			errStr = job.Error.Error()
+		}
+		e.emit(Event{
+			Type:         EventJobFinished,
+			Timestamp:    job.EndedAt,
+			PipelineID:   pipeline.ID,
+			PipelineName: pipeline.Name,
+			JobName:      job.Name,
+			Status:       StatusFailed,
+			Error:        errStr,
+			Duration:     jobDuration,
+		})
+
 		return JobResult{
 			JobName: job.Name,
 			Status:  StatusFailed,
@@ -265,6 +403,17 @@ func (e *Engine) executeJob(ctx context.Context, job *Job) JobResult {
 	}
 
 	job.Status = StatusSuccess
+
+	e.emit(Event{
+		Type:         EventJobFinished,
+		Timestamp:    job.EndedAt,
+		PipelineID:   pipeline.ID,
+		PipelineName: pipeline.Name,
+		JobName:      job.Name,
+		Status:       StatusSuccess,
+		Duration:     jobDuration,
+	})
+
 	return JobResult{
 		JobName: job.Name,
 		Status:  StatusSuccess,
@@ -272,29 +421,32 @@ func (e *Engine) executeJob(ctx context.Context, job *Job) JobResult {
 	}
 }
 
-// logAdapter implements io.Writer and routes writes to a LogWriter.
-type logAdapter struct {
-	writer   LogWriter
-	job      string
-	step     string
-	isStderr bool
+// eventLogAdapter implements io.Writer and routes writes to an EventHandler as EventStepLog events.
+type eventLogAdapter struct {
+	handler      EventHandler
+	pipelineID   string
+	pipelineName string
+	job          string
+	step         string
+	isStderr     bool
 }
 
-func (l *logAdapter) Write(p []byte) (n int, err error) {
-	if l.writer != nil {
-		if err := l.writer.WriteLog(l.job, l.step, p, l.isStderr); err != nil {
+func (l *eventLogAdapter) Write(p []byte) (n int, err error) {
+	if l.handler != nil {
+		data := make([]byte, len(p))
+		copy(data, p)
+		if err := l.handler.HandleEvent(Event{
+			Type:         EventStepLog,
+			Timestamp:    time.Now(),
+			PipelineID:   l.pipelineID,
+			PipelineName: l.pipelineName,
+			JobName:      l.job,
+			StepName:     l.step,
+			LogData:      data,
+			IsStderr:     l.isStderr,
+		}); err != nil {
 			return 0, err
 		}
 	}
 	return len(p), nil
-}
-
-// StdoutLogWriter is a LogWriter that prints logs to stdout with a prefix.
-type StdoutLogWriter struct{}
-
-// WriteLog prints log data to stdout with a [job/step] prefix.
-func (w *StdoutLogWriter) WriteLog(jobName, stepName string, data []byte, isStderr bool) error {
-	prefix := fmt.Sprintf("[%s/%s] ", jobName, stepName)
-	fmt.Print(prefix + string(data))
-	return nil
 }
