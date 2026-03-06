@@ -3,8 +3,11 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/rumpl/seedee/internal/core"
+	"github.com/rumpl/seedee/internal/runner/docker"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +43,63 @@ With --server, the pipeline is sent to a remote seedee server.`,
 }
 
 func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
-	return fmt.Errorf("local execution not yet implemented")
+	// 1. Create Docker client
+	dockerClient, err := docker.NewClient()
+	if err != nil {
+		return fmt.Errorf("connecting to Docker: %w\n\nMake sure Docker is running:\n  docker info", err)
+	}
+	defer dockerClient.Close()
+
+	// 2. Verify Docker is reachable
+	pingCtx, pingCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer pingCancel()
+
+	if err := dockerClient.Ping(pingCtx); err != nil {
+		return fmt.Errorf("Docker is not reachable: %w\n\nMake sure Docker daemon is running:\n  docker info\n\nOr run against a remote server:\n  seedee run --server <addr>", err)
+	}
+
+	// 3. Create Docker runner with current working directory as source
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting working directory: %w", err)
+	}
+
+	runner := docker.NewDockerRunnerWithConfig(dockerClient, docker.DockerRunnerConfig{
+		SourceDir: cwd,
+	})
+
+	// 4. Create log writer for terminal output
+	logWriter := &terminalLogWriter{
+		out:     os.Stdout,
+		errOut:  os.Stderr,
+		verbose: verbose,
+	}
+
+	// 5. Create and run engine
+	engine := &core.Engine{
+		Runner:    runner,
+		LogWriter: logWriter,
+	}
+
+	fmt.Fprintf(os.Stdout, "▶ Pipeline %q started\n", pipeline.Name)
+	for _, job := range pipeline.Jobs {
+		fmt.Fprintf(os.Stdout, "  ▶ Job %q (%s, %d steps)\n", job.Name, job.Image, len(job.Steps))
+	}
+
+	result, err := engine.Execute(ctx, pipeline)
+	if err != nil {
+		return fmt.Errorf("pipeline execution failed: %w", err)
+	}
+
+	// 6. Print summary
+	printPipelineSummary(os.Stdout, result)
+
+	// 7. Exit with appropriate code
+	if result.Status != core.StatusSuccess {
+		os.Exit(1)
+	}
+
+	return nil
 }
 
 func runRemote(ctx context.Context, pipeline *core.Pipeline, addr string) error {

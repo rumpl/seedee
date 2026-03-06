@@ -120,11 +120,12 @@ func TestRunCmd_LoadsConfig(t *testing.T) {
 	root.SetArgs([]string{"run", "--config", configPath})
 	err := root.Execute()
 	if err == nil {
-		t.Fatal("expected error (not yet implemented)")
+		// If Docker is available, this might succeed
+		return
 	}
-	// Should get past config loading and hit "not yet implemented"
-	if !strings.Contains(err.Error(), "not yet implemented") {
-		t.Errorf("expected 'not yet implemented' error, got: %v", err)
+	// Should get past config loading — should not return "not yet implemented"
+	if strings.Contains(err.Error(), "not yet implemented") {
+		t.Errorf("runLocal should no longer return 'not yet implemented', got: %v", err)
 	}
 }
 
