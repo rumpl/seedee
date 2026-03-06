@@ -20,7 +20,6 @@ pipeline:
       image: golang:1.26
       depends_on:
         - test
-        - lint
       steps:
         - name: Build binaries
           run: cd /workspace && go build -o /workspace/bin/seedee ./cmd/seedee && go build -o /workspace/bin/seedeed ./cmd/seedeed
