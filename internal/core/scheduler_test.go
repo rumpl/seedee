@@ -268,12 +268,12 @@ func TestSchedule_DeterministicOrder(t *testing.T) {
 	// Run multiple times to verify determinism
 	for i := 0; i < 10; i++ {
 		p := buildPipeline(map[string][]string{
-			"zebra":    nil,
-			"alpha":    nil,
-			"middle":   nil,
-			"beta":     {"alpha"},
-			"gamma":    {"alpha"},
-			"delta":    {"beta", "gamma"},
+			"zebra":  nil,
+			"alpha":  nil,
+			"middle": nil,
+			"beta":   {"alpha"},
+			"gamma":  {"alpha"},
+			"delta":  {"beta", "gamma"},
 		})
 
 		groups, err := Schedule(p)

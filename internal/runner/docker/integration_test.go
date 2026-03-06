@@ -35,7 +35,7 @@ func TestRunContainer_Success(t *testing.T) {
 	defer c.Close()
 
 	var stdout, stderr bytes.Buffer
-	exitCode, err := c.RunContainer(context.Background(), RunOptions{
+	exitCode, err := c.RunContainer(context.Background(), &RunOptions{
 		Image:   "alpine:latest",
 		Command: "echo hello",
 		Stdout:  &stdout,
@@ -60,7 +60,7 @@ func TestRunContainer_Failure(t *testing.T) {
 	defer c.Close()
 
 	var stdout, stderr bytes.Buffer
-	exitCode, err := c.RunContainer(context.Background(), RunOptions{
+	exitCode, err := c.RunContainer(context.Background(), &RunOptions{
 		Image:   "alpine:latest",
 		Command: "exit 42",
 		Stdout:  &stdout,
@@ -82,7 +82,7 @@ func TestRunContainer_StderrCapture(t *testing.T) {
 	defer c.Close()
 
 	var stdout, stderr bytes.Buffer
-	exitCode, err := c.RunContainer(context.Background(), RunOptions{
+	exitCode, err := c.RunContainer(context.Background(), &RunOptions{
 		Image:   "alpine:latest",
 		Command: "echo oops >&2",
 		Stdout:  &stdout,

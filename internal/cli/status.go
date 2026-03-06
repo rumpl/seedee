@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 
+	"connectrpc.com/connect"
 	seedeev1 "github.com/rumpl/seedee/gen/seedee/v1"
 	"github.com/spf13/cobra"
-	"connectrpc.com/connect"
 )
 
 func newStatusCmd() *cobra.Command {
@@ -53,22 +53,22 @@ func statusIcon(s seedeev1.Status) string {
 }
 
 func printPipelineStatus(w io.Writer, resp *seedeev1.GetPipelineStatusResponse) {
-	fmt.Fprintf(w, "%s Pipeline: %s (%s)\n", statusIcon(resp.GetStatus()), resp.GetPipelineName(), resp.GetPipelineId())
-	fmt.Fprintf(w, "  Status:   %s\n", resp.GetStatus())
+	_, _ = fmt.Fprintf(w, "%s Pipeline: %s (%s)\n", statusIcon(resp.GetStatus()), resp.GetPipelineName(), resp.GetPipelineId())
+	_, _ = fmt.Fprintf(w, "  Status:   %s\n", resp.GetStatus())
 	if resp.GetDuration() != nil {
-		fmt.Fprintf(w, "  Duration: %s\n", resp.GetDuration().AsDuration())
+		_, _ = fmt.Fprintf(w, "  Duration: %s\n", resp.GetDuration().AsDuration())
 	}
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 
 	for _, job := range resp.GetJobs() {
-		fmt.Fprintf(w, "  %s Job: %s\n", statusIcon(job.GetStatus()), job.GetName())
+		_, _ = fmt.Fprintf(w, "  %s Job: %s\n", statusIcon(job.GetStatus()), job.GetName())
 		if job.GetDuration() != nil {
-			fmt.Fprintf(w, "      Duration: %s\n", job.GetDuration().AsDuration())
+			_, _ = fmt.Fprintf(w, "      Duration: %s\n", job.GetDuration().AsDuration())
 		}
 		for _, step := range job.GetSteps() {
-			fmt.Fprintf(w, "      %s Step: %s\n", statusIcon(step.GetStatus()), step.GetName())
+			_, _ = fmt.Fprintf(w, "      %s Step: %s\n", statusIcon(step.GetStatus()), step.GetName())
 			if step.GetDuration() != nil {
-				fmt.Fprintf(w, "          Duration: %s\n", step.GetDuration().AsDuration())
+				_, _ = fmt.Fprintf(w, "          Duration: %s\n", step.GetDuration().AsDuration())
 			}
 		}
 	}

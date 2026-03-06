@@ -5,9 +5,9 @@ import (
 	"io"
 	"text/tabwriter"
 
+	"connectrpc.com/connect"
 	seedeev1 "github.com/rumpl/seedee/gen/seedee/v1"
 	"github.com/spf13/cobra"
-	"connectrpc.com/connect"
 )
 
 func newListCmd() *cobra.Command {
@@ -67,19 +67,19 @@ func parseStatusFilter(s string) (seedeev1.Status, error) {
 
 func printPipelineList(w io.Writer, pipelines []*seedeev1.PipelineSummary) {
 	if len(pipelines) == 0 {
-		fmt.Fprintln(w, "No pipelines found.")
+		_, _ = fmt.Fprintln(w, "No pipelines found.")
 		return
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tDURATION")
+	_, _ = fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tDURATION")
 
 	for _, p := range pipelines {
 		dur := "-"
 		if p.GetDuration() != nil {
 			dur = p.GetDuration().AsDuration().String()
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s %s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s %s\t%s\n",
 			p.GetPipelineId(),
 			p.GetName(),
 			statusIcon(p.GetStatus()),
@@ -88,5 +88,5 @@ func printPipelineList(w io.Writer, pipelines []*seedeev1.PipelineSummary) {
 		)
 	}
 
-	tw.Flush()
+	_ = tw.Flush()
 }

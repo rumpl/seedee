@@ -22,7 +22,7 @@ func newRunCmd() *cobra.Command {
 
 Without --server, the pipeline runs locally using Docker.
 With --server, the pipeline is sent to a remote seedee server.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := loadPipelineConfig(configFile)
 			if err != nil {
 				return fmt.Errorf("loading pipeline config: %w", err)
@@ -32,9 +32,9 @@ With --server, the pipeline is sent to a remote seedee server.`,
 				return fmt.Errorf("creating pipeline: %w", err)
 			}
 			if verbose {
-				fmt.Fprintf(cmd.ErrOrStderr(), "Pipeline: %s (%d jobs)\n", pipeline.Name, len(pipeline.Jobs))
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Pipeline: %s (%d jobs)\n", pipeline.Name, len(pipeline.Jobs))
 				for _, job := range pipeline.Jobs {
-					fmt.Fprintf(cmd.ErrOrStderr(), "  Job: %s (%s, %d steps)\n", job.Name, job.Image, len(job.Steps))
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "  Job: %s (%s, %d steps)\n", job.Name, job.Image, len(job.Steps))
 				}
 			}
 			if serverAddr != "" {
@@ -49,16 +49,17 @@ func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 	// 1. Create Docker client
 	dockerClient, err := docker.NewClient()
 	if err != nil {
-		return fmt.Errorf("connecting to Docker: %w\n\nMake sure Docker is running:\n  docker info", err)
+		return fmt.Errorf("connecting to docker: %w\n\nmake sure Docker is running:\n  docker info", err)
 	}
-	defer dockerClient.Close()
+	defer func() { _ = dockerClient.Close() }()
 
 	// 2. Verify Docker is reachable
 	pingCtx, pingCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer pingCancel()
+	pingErr := dockerClient.Ping(pingCtx)
+	pingCancel()
 
-	if err := dockerClient.Ping(pingCtx); err != nil {
-		return fmt.Errorf("Docker is not reachable: %w\n\nMake sure Docker daemon is running:\n  docker info\n\nOr run against a remote server:\n  seedee run --server <addr>", err)
+	if pingErr != nil {
+		return fmt.Errorf("docker is not reachable: %w\n\nmake sure Docker daemon is running:\n  docker info\n\nor run against a remote server:\n  seedee run --server <addr>", pingErr)
 	}
 
 	// 3. Create Docker runner with current working directory as source
@@ -67,7 +68,7 @@ func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 		return fmt.Errorf("getting working directory: %w", err)
 	}
 
-	runner := docker.NewDockerRunnerWithConfig(dockerClient, docker.DockerRunnerConfig{
+	runner := docker.NewRunnerWithConfig(dockerClient, docker.RunnerConfig{
 		SourceDir: cwd,
 	})
 
@@ -94,7 +95,7 @@ func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 
 	// 7. Exit with appropriate code
 	if result.Status != core.StatusSuccess {
-		os.Exit(1)
+		return fmt.Errorf("pipeline failed with status: %s", result.Status)
 	}
 
 	return nil
@@ -133,7 +134,7 @@ func runRemote(ctx context.Context, pipeline *core.Pipeline, addr string) error 
 		select {
 		case <-ctx.Done():
 			if pipelineID != "" {
-				cancelCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 				defer cancel()
 				_, _ = client.CancelPipeline(cancelCtx, connect.NewRequest(&seedeev1.CancelPipelineRequest{
 					PipelineId: pipelineID,
@@ -167,10 +168,10 @@ func runRemote(ctx context.Context, pipeline *core.Pipeline, addr string) error 
 	}
 
 	// 6. Print summary
-	fmt.Fprintf(os.Stdout, "\nPipeline %s completed: %s\n", pipelineID, formatProtoStatus(lastStatus))
+	_, _ = fmt.Fprintf(os.Stdout, "\nPipeline %s completed: %s\n", pipelineID, formatProtoStatus(lastStatus))
 
 	if lastStatus != seedeev1.Status_STATUS_SUCCESS {
-		os.Exit(1)
+		return fmt.Errorf("pipeline failed with status: %s", formatProtoStatus(lastStatus))
 	}
 
 	return nil

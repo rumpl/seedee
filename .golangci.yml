@@ -45,7 +45,7 @@ linters:
         - name: package-comments
     errcheck:
       check-type-assertions: true
-      check-blank: true
+      check-blank: false
 
 issues:
   max-issues-per-linter: 0

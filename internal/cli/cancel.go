@@ -1,11 +1,12 @@
+// Package cli implements the command-line interface for seedee.
 package cli
 
 import (
 	"fmt"
 
+	"connectrpc.com/connect"
 	seedeev1 "github.com/rumpl/seedee/gen/seedee/v1"
 	"github.com/spf13/cobra"
-	"connectrpc.com/connect"
 )
 
 func newCancelCmd() *cobra.Command {
@@ -26,7 +27,7 @@ func newCancelCmd() *cobra.Command {
 				return fmt.Errorf("canceling pipeline: %w", err)
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), resp.Msg.GetMessage())
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), resp.Msg.GetMessage())
 			return nil
 		},
 	}

@@ -6,14 +6,14 @@ import (
 	"github.com/rumpl/seedee/internal/runner"
 )
 
-// TestDockerRunnerImplementsRunner is a compile-time check that DockerRunner
+// TestRunnerImplementsRunner is a compile-time check that Runner
 // implements the runner.Runner interface.
-func TestDockerRunnerImplementsRunner(t *testing.T) {
-	var _ runner.Runner = (*DockerRunner)(nil)
+func TestRunnerImplementsRunner(t *testing.T) {
+	var _ runner.Runner = (*Runner)(nil)
 }
 
-func TestNewDockerRunner(t *testing.T) {
-	r := NewDockerRunner(nil)
+func TestNewRunner(t *testing.T) {
+	r := NewRunner(nil)
 	if r == nil {
 		t.Fatal("expected non-nil runner")
 	}
@@ -47,7 +47,7 @@ func TestRandomSuffix_Unique(t *testing.T) {
 func TestRandomSuffix_IsHex(t *testing.T) {
 	s := randomSuffix()
 	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			t.Fatalf("unexpected character %c in suffix %q", c, s)
 		}
 	}

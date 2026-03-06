@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-func TestDockerRunnerConfig_Defaults(t *testing.T) {
-	cfg := DockerRunnerConfig{}
+func TestRunnerConfig_Defaults(t *testing.T) {
+	cfg := RunnerConfig{}
 	if cfg.SourceDir != "" {
 		t.Fatalf("expected empty SourceDir, got %q", cfg.SourceDir)
 	}

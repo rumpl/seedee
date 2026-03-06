@@ -44,7 +44,7 @@ func (h *terminalEventHandler) jobPrefix(jobName, stepName string) string {
 }
 
 // HandleEvent processes a single pipeline event and displays it.
-func (h *terminalEventHandler) HandleEvent(e core.Event) error {
+func (h *terminalEventHandler) HandleEvent(e *core.Event) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -54,14 +54,14 @@ func (h *terminalEventHandler) HandleEvent(e core.Event) error {
 		if name == "" {
 			name = e.PipelineID
 		}
-		fmt.Fprintf(h.out, "%s Pipeline %s started\n\n",
+		_, _ = fmt.Fprintf(h.out, "%s Pipeline %s started\n\n",
 			bold(h.isTTY, "▶"), bold(h.isTTY, fmt.Sprintf("%q", name)))
 
 	case core.EventPipelineFinished:
 		// Handled by PrintSummary
 
 	case core.EventJobStarted:
-		fmt.Fprintf(h.out, "  %s %s\n",
+		_, _ = fmt.Fprintf(h.out, "  %s %s\n",
 			bold(h.isTTY, "▶"),
 			colorize(h.isTTY, h.colorForJob(e.JobName), e.JobName))
 
@@ -75,11 +75,11 @@ func (h *terminalEventHandler) HandleEvent(e core.Event) error {
 			msg += " — " + red(h.isTTY, e.Error)
 		}
 		_ = status
-		fmt.Fprintln(h.out, msg)
-		fmt.Fprintln(h.out) // blank line after job block
+		_, _ = fmt.Fprintln(h.out, msg)
+		_, _ = fmt.Fprintln(h.out) // blank line after job block
 
 	case core.EventJobSkipped:
-		fmt.Fprintf(h.out, "  %s %s skipped\n\n",
+		_, _ = fmt.Fprintf(h.out, "  %s %s skipped\n\n",
 			yellow(h.isTTY, "⊘"),
 			e.JobName)
 
@@ -98,7 +98,7 @@ func (h *terminalEventHandler) HandleEvent(e core.Event) error {
 		if e.Error != "" {
 			msg += " — " + red(h.isTTY, e.Error)
 		}
-		fmt.Fprintln(h.out, msg)
+		_, _ = fmt.Fprintln(h.out, msg)
 
 	case core.EventStepLog:
 		h.writeLog(e)
@@ -108,7 +108,7 @@ func (h *terminalEventHandler) HandleEvent(e core.Event) error {
 }
 
 // writeLog writes log lines with a colorized [job/step] prefix.
-func (h *terminalEventHandler) writeLog(e core.Event) {
+func (h *terminalEventHandler) writeLog(e *core.Event) {
 	w := h.out
 	if e.IsStderr {
 		w = h.errOut
@@ -121,7 +121,7 @@ func (h *terminalEventHandler) writeLog(e core.Event) {
 	}
 	lines := strings.Split(text, "\n")
 	for _, line := range lines {
-		fmt.Fprintf(w, "    %s %s\n", prefix, line)
+		_, _ = fmt.Fprintf(w, "    %s %s\n", prefix, line)
 	}
 }
 
@@ -161,8 +161,8 @@ func (h *terminalEventHandler) PrintSummary(result *core.PipelineResult) {
 	defer h.mu.Unlock()
 
 	separator := dim(h.isTTY, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Fprintf(h.out, "\n%s\n", separator)
-	fmt.Fprintf(h.out, "Pipeline: %s\n", bold(h.isTTY, result.PipelineID))
+	_, _ = fmt.Fprintf(h.out, "\n%s\n", separator)
+	_, _ = fmt.Fprintf(h.out, "Pipeline: %s\n", bold(h.isTTY, result.PipelineID))
 
 	var statusStr string
 	switch result.Status {
@@ -175,8 +175,8 @@ func (h *terminalEventHandler) PrintSummary(result *core.PipelineResult) {
 	default:
 		statusStr = string(result.Status)
 	}
-	fmt.Fprintf(h.out, "Status:   %s\n", statusStr)
-	fmt.Fprintf(h.out, "Duration: %s\n\n", result.Duration.Round(time.Millisecond))
+	_, _ = fmt.Fprintf(h.out, "Status:   %s\n", statusStr)
+	_, _ = fmt.Fprintf(h.out, "Duration: %s\n\n", result.Duration.Round(time.Millisecond))
 
 	for _, jr := range result.Jobs {
 		var icon string
@@ -192,8 +192,8 @@ func (h *terminalEventHandler) PrintSummary(result *core.PipelineResult) {
 		default:
 			icon = "?"
 		}
-		fmt.Fprintf(h.out, "  %s %-20s %s\n", icon, jr.JobName, dim(h.isTTY, jr.Duration.Round(time.Millisecond).String()))
+		_, _ = fmt.Fprintf(h.out, "  %s %-20s %s\n", icon, jr.JobName, dim(h.isTTY, jr.Duration.Round(time.Millisecond).String()))
 	}
 
-	fmt.Fprintf(h.out, "%s\n", separator)
+	_, _ = fmt.Fprintf(h.out, "%s\n", separator)
 }

@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"testing"
 
+	"time"
+
 	seedeev1 "github.com/rumpl/seedee/gen/seedee/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"time"
 )
 
 func TestListCmd_RequiresServer(t *testing.T) {

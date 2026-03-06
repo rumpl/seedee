@@ -12,7 +12,7 @@ import (
 func TestTerminalEventHandler_PipelineStarted(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: out, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:         core.EventPipelineStarted,
 		PipelineID:   "pipe-123",
 		PipelineName: "my-pipeline",
@@ -35,7 +35,7 @@ func TestTerminalEventHandler_PipelineStarted(t *testing.T) {
 func TestTerminalEventHandler_PipelineStarted_FallbackToID(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: out, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:       core.EventPipelineStarted,
 		PipelineID: "pipe-456",
 	})
@@ -50,7 +50,7 @@ func TestTerminalEventHandler_PipelineStarted_FallbackToID(t *testing.T) {
 func TestTerminalEventHandler_JobStarted(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: out, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:    core.EventJobStarted,
 		JobName: "build",
 	})
@@ -69,7 +69,7 @@ func TestTerminalEventHandler_JobStarted(t *testing.T) {
 func TestTerminalEventHandler_JobFinished(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: out, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:     core.EventJobFinished,
 		JobName:  "build",
 		Status:   core.StatusSuccess,
@@ -93,7 +93,7 @@ func TestTerminalEventHandler_JobFinished(t *testing.T) {
 func TestTerminalEventHandler_JobFinishedFailed(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: out, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:    core.EventJobFinished,
 		JobName: "build",
 		Status:  core.StatusFailed,
@@ -114,7 +114,7 @@ func TestTerminalEventHandler_JobFinishedFailed(t *testing.T) {
 func TestTerminalEventHandler_JobSkipped(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: out, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:    core.EventJobSkipped,
 		JobName: "deploy",
 	})
@@ -136,7 +136,7 @@ func TestTerminalEventHandler_JobSkipped(t *testing.T) {
 func TestTerminalEventHandler_StepFinished(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: out, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:     core.EventStepFinished,
 		JobName:  "build",
 		StepName: "compile",
@@ -166,7 +166,7 @@ func TestTerminalEventHandler_StepFinished(t *testing.T) {
 func TestTerminalEventHandler_StepFinishedSuccess(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: out, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:     core.EventStepFinished,
 		JobName:  "build",
 		StepName: "compile",
@@ -189,7 +189,7 @@ func TestTerminalEventHandler_StepLogStdout(t *testing.T) {
 	out := &bytes.Buffer{}
 	errOut := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: errOut, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:     core.EventStepLog,
 		JobName:  "build",
 		StepName: "compile",
@@ -215,7 +215,7 @@ func TestTerminalEventHandler_StepLogStderr(t *testing.T) {
 	out := &bytes.Buffer{}
 	errOut := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: errOut, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:     core.EventStepLog,
 		JobName:  "build",
 		StepName: "compile",
@@ -239,7 +239,7 @@ func TestTerminalEventHandler_StepLogStderr(t *testing.T) {
 func TestTerminalEventHandler_StepLogMultipleLines(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: &bytes.Buffer{}, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:     core.EventStepLog,
 		JobName:  "build",
 		StepName: "compile",
@@ -264,7 +264,7 @@ func TestTerminalEventHandler_StepLogMultipleLines(t *testing.T) {
 func TestTerminalEventHandler_StepLogEmptyData(t *testing.T) {
 	out := &bytes.Buffer{}
 	h := &terminalEventHandler{out: out, errOut: &bytes.Buffer{}, isTTY: false}
-	err := h.HandleEvent(core.Event{
+	err := h.HandleEvent(&core.Event{
 		Type:     core.EventStepLog,
 		JobName:  "build",
 		StepName: "compile",
@@ -287,7 +287,7 @@ func TestTerminalEventHandler_ThreadSafe(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func() {
 			for j := 0; j < 100; j++ {
-				_ = h.HandleEvent(core.Event{
+				_ = h.HandleEvent(&core.Event{
 					Type:     core.EventStepLog,
 					JobName:  "job",
 					StepName: "step",

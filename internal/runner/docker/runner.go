@@ -10,11 +10,11 @@ import (
 	"github.com/rumpl/seedee/internal/runner"
 )
 
-// Compile-time check that DockerRunner implements runner.Runner.
-var _ runner.Runner = (*DockerRunner)(nil)
+// Compile-time check that Runner implements runner.Runner.
+var _ runner.Runner = (*Runner)(nil)
 
-// DockerRunnerConfig configures the Docker runner.
-type DockerRunnerConfig struct {
+// RunnerConfig configures the Docker runner.
+type RunnerConfig struct {
 	// SourceDir is the directory to inject into the workspace volume.
 	// If empty, no source injection happens (empty workspace).
 	SourceDir string
@@ -24,24 +24,24 @@ type DockerRunnerConfig struct {
 	PipelineID string
 }
 
-// DockerRunner implements runner.Runner using Docker containers.
+// Runner implements runner.Runner using Docker containers.
 // Each job gets a shared workspace volume that persists across steps.
-type DockerRunner struct {
+type Runner struct {
 	client    *Client
-	config    DockerRunnerConfig
+	config    RunnerConfig
 	workspace *WorkspaceManager
 	cleanup   *CleanupRegistry
 	volumes   map[string]string // jobName -> volumeName
 }
 
-// NewDockerRunner creates a new DockerRunner backed by the given Docker client.
-func NewDockerRunner(client *Client) *DockerRunner {
-	return NewDockerRunnerWithConfig(client, DockerRunnerConfig{})
+// NewRunner creates a new Runner backed by the given Docker client.
+func NewRunner(client *Client) *Runner {
+	return NewRunnerWithConfig(client, RunnerConfig{})
 }
 
-// NewDockerRunnerWithConfig creates a new DockerRunner with the given configuration.
-func NewDockerRunnerWithConfig(client *Client, config DockerRunnerConfig) *DockerRunner {
-	return &DockerRunner{
+// NewRunnerWithConfig creates a new Runner with the given configuration.
+func NewRunnerWithConfig(client *Client, config RunnerConfig) *Runner {
+	return &Runner{
 		client:    client,
 		config:    config,
 		workspace: NewWorkspaceManager(client),
@@ -52,7 +52,7 @@ func NewDockerRunnerWithConfig(client *Client, config DockerRunnerConfig) *Docke
 
 // Setup pulls the job's image and creates a workspace volume for the job.
 // If SourceDir is configured, it injects source code into the volume.
-func (r *DockerRunner) Setup(ctx context.Context, job *core.Job) error {
+func (r *Runner) Setup(ctx context.Context, job *core.Job) error {
 	if err := r.client.PullImage(ctx, job.Image, io.Discard); err != nil {
 		return fmt.Errorf("pulling image %s: %w", job.Image, err)
 	}
@@ -76,13 +76,13 @@ func (r *DockerRunner) Setup(ctx context.Context, job *core.Job) error {
 
 // RunStep runs a single step inside a Docker container with the job's workspace
 // volume mounted at /workspace.
-func (r *DockerRunner) RunStep(ctx context.Context, job *core.Job, step *core.Step, stdout, stderr io.Writer) (*core.StepResult, error) {
+func (r *Runner) RunStep(ctx context.Context, job *core.Job, step *core.Step, stdout, stderr io.Writer) (*core.StepResult, error) {
 	volName, ok := r.volumes[job.Name]
 	if !ok {
 		return nil, fmt.Errorf("no volume found for job %s; was Setup called?", job.Name)
 	}
 
-	exitCode, err := r.client.RunContainer(ctx, RunOptions{
+	exitCode, err := r.client.RunContainer(ctx, &RunOptions{
 		Image:   job.Image,
 		Command: step.Command,
 		Env:     step.Env,
@@ -100,7 +100,7 @@ func (r *DockerRunner) RunStep(ctx context.Context, job *core.Job, step *core.St
 }
 
 // Teardown removes the workspace volume for the job.
-func (r *DockerRunner) Teardown(ctx context.Context, job *core.Job) error {
+func (r *Runner) Teardown(ctx context.Context, job *core.Job) error {
 	volName, ok := r.volumes[job.Name]
 	if !ok {
 		return nil
@@ -117,7 +117,7 @@ func (r *DockerRunner) Teardown(ctx context.Context, job *core.Job) error {
 
 // CleanupAll removes all registered resources tracked by this runner.
 // This is useful for cleaning up on fatal error.
-func (r *DockerRunner) CleanupAll(ctx context.Context) error {
+func (r *Runner) CleanupAll(ctx context.Context) error {
 	return r.cleanup.CleanupAll(ctx, r.client)
 }
 

@@ -233,7 +233,7 @@ func TestEvents_BufferedHandlerGoroutineSafe(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			_ = handler.HandleEvent(Event{
+			_ = handler.HandleEvent(&Event{
 				Type:      EventStepLog,
 				Timestamp: time.Now(),
 				JobName:   fmt.Sprintf("job-%d", n),
@@ -262,7 +262,7 @@ func TestEvents_MultiEventHandlerFanout(t *testing.T) {
 		PipelineName: "multi-test",
 	}
 
-	err := multi.HandleEvent(event)
+	err := multi.HandleEvent(&event)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -284,7 +284,7 @@ type errHandler struct {
 	err error
 }
 
-func (h *errHandler) HandleEvent(event Event) error {
+func (h *errHandler) HandleEvent(_ *Event) error {
 	return h.err
 }
 
@@ -293,7 +293,7 @@ func TestEvents_MultiEventHandlerStopsOnError(t *testing.T) {
 	h2 := &BufferedEventHandler{}
 	multi := &MultiEventHandler{Handlers: []EventHandler{h1, h2}}
 
-	err := multi.HandleEvent(Event{Type: EventPipelineStarted})
+	err := multi.HandleEvent(&Event{Type: EventPipelineStarted})
 	if err == nil {
 		t.Fatal("expected error from MultiEventHandler")
 	}

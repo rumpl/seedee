@@ -49,7 +49,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "ok")
+		_, _ = fmt.Fprintln(w, "ok")
 	})
 
 	h2cHandler := h2c.NewHandler(mux, &http2.Server{})
@@ -77,7 +77,7 @@ func (s *Server) Start(ctx context.Context) error {
 		<-ctx.Done()
 		s.logger.Info("shutting down server")
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
 
 		if err := srv.Shutdown(shutdownCtx); err != nil {

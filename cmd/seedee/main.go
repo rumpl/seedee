@@ -1,3 +1,4 @@
+// Package main is the entry point for the seedee CLI.
 package main
 
 import (
@@ -18,10 +19,10 @@ func main() {
 
 	go func() {
 		<-sigCh
-		fmt.Fprintf(os.Stderr, "\nInterrupted. Shutting down gracefully... (Ctrl+C again to force)\n")
+		_, _ = fmt.Fprintf(os.Stderr, "\nInterrupted. Shutting down gracefully... (Ctrl+C again to force)\n")
 		cancel()
 		<-sigCh
-		fmt.Fprintf(os.Stderr, "\nForce quit.\n")
+		_, _ = fmt.Fprintf(os.Stderr, "\nForce quit.\n")
 		os.Exit(130)
 	}()
 
@@ -29,7 +30,7 @@ func main() {
 	root.SetContext(ctx)
 
 	if err := root.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		os.Exit(1)
 	}
 }

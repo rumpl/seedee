@@ -765,7 +765,7 @@ func TestEngine_EventLogAdapterNilHandler(t *testing.T) {
 
 func TestEngine_StdoutEventHandler(t *testing.T) {
 	h := &StdoutEventHandler{}
-	err := h.HandleEvent(Event{
+	err := h.HandleEvent(&Event{
 		Type:         EventPipelineStarted,
 		Timestamp:    time.Now(),
 		PipelineName: "test-pipeline",
@@ -942,6 +942,6 @@ type errHandlerCore struct {
 	err error
 }
 
-func (h *errHandlerCore) HandleEvent(Event) error {
+func (h *errHandlerCore) HandleEvent(_ *Event) error {
 	return h.err
 }

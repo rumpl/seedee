@@ -33,6 +33,7 @@ type StepDef struct {
 // Status represents the execution state of a job or step.
 type Status string
 
+// Status values for pipeline, job, and step execution states.
 const (
 	StatusPending  Status = "pending"
 	StatusRunning  Status = "running"

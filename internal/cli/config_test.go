@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +20,7 @@ func TestLoadPipelineConfig_ValidFile(t *testing.T) {
         - name: Build
           run: go build ./...
 `
-	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("writing temp config: %v", err)
 	}
 
@@ -62,7 +63,7 @@ func TestLoadPipelineConfig_InvalidYAML(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".seedee.yml")
 	content := `{{{not valid yaml:::}`
-	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("writing temp config: %v", err)
 	}
 
@@ -86,7 +87,7 @@ func TestLoadPipelineConfig_ValidationFailure(t *testing.T) {
       steps:
         - run: go build ./...
 `
-	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("writing temp config: %v", err)
 	}
 
@@ -96,5 +97,78 @@ func TestLoadPipelineConfig_ValidationFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "pipeline name is required") {
 		t.Errorf("expected 'pipeline name is required' in error, got: %v", err)
+	}
+}
+
+func TestRunCmd_LoadsConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".seedee.yml")
+	content := `pipeline:
+  name: test-pipeline
+  jobs:
+    build:
+      image: golang:1.22
+      steps:
+        - name: Build
+          run: go build ./...
+`
+	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("writing temp config: %v", err)
+	}
+
+	root := NewRootCmd()
+	root.SetArgs([]string{"run", "--config", configPath})
+	err := root.Execute()
+	if err == nil {
+		// If Docker is available, this might succeed
+		return
+	}
+	// Should get past config loading — should not return "not yet implemented"
+	if strings.Contains(err.Error(), "not yet implemented") {
+		t.Errorf("runLocal should no longer return 'not yet implemented', got: %v", err)
+	}
+}
+
+func TestRunCmd_VerboseShowsPipeline(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".seedee.yml")
+	content := `pipeline:
+  name: verbose-test
+  jobs:
+    build:
+      image: golang:1.22
+      steps:
+        - name: Build
+          run: go build ./...
+    test:
+      image: golang:1.22
+      depends_on:
+        - build
+      steps:
+        - name: Test
+          run: go test ./...
+`
+	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("writing temp config: %v", err)
+	}
+
+	root := NewRootCmd()
+	stderr := &bytes.Buffer{}
+	root.SetErr(stderr)
+	root.SetArgs([]string{"run", "--config", configPath, "--verbose"})
+	_ = root.Execute() // will error with "not yet implemented", that's fine
+
+	output := stderr.String()
+	if !strings.Contains(output, "Pipeline: verbose-test") {
+		t.Errorf("expected verbose output to contain pipeline name, got: %s", output)
+	}
+	if !strings.Contains(output, "2 jobs") {
+		t.Errorf("expected verbose output to show '2 jobs', got: %s", output)
+	}
+	if !strings.Contains(output, "Job: build") {
+		t.Errorf("expected verbose output to contain 'Job: build', got: %s", output)
+	}
+	if !strings.Contains(output, "Job: test") {
+		t.Errorf("expected verbose output to contain 'Job: test', got: %s", output)
 	}
 }

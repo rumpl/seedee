@@ -51,7 +51,7 @@ func (c *Client) PullImage(ctx context.Context, ref string, output io.Writer) er
 	if err != nil {
 		return fmt.Errorf("pulling image %s: %w", ref, err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	if _, err := io.Copy(output, reader); err != nil {
 		return fmt.Errorf("reading pull output for %s: %w", ref, err)
@@ -72,7 +72,7 @@ type RunOptions struct {
 // RunContainer creates a container, starts it, waits for it to exit,
 // and returns the exit code. stdout/stderr are streamed to the given writers.
 // The container is always removed after this call returns.
-func (c *Client) RunContainer(ctx context.Context, opts RunOptions) (int, error) {
+func (c *Client) RunContainer(ctx context.Context, opts *RunOptions) (int, error) {
 	cfg := &container.Config{
 		Image: opts.Image,
 		Cmd:   []string{"sh", "-c", opts.Command},

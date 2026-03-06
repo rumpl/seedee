@@ -10,6 +10,7 @@ var (
 	verbose    bool
 )
 
+// NewRootCmd creates the root cobra command for the seedee CLI.
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "seedee",

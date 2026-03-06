@@ -33,5 +33,5 @@ func wrapConnectError(err error, addr string) error {
 	}
 
 	// Non-connect error (network, DNS, etc.)
-	return fmt.Errorf("failed to communicate with server at %s: %w\n\nCheck that the address is correct and the server is reachable.", addr, err)
+	return fmt.Errorf("failed to communicate with server at %s: %w\n\ncheck that the address is correct and the server is reachable", addr, err)
 }
