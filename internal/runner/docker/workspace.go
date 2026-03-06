@@ -56,17 +56,16 @@ func (w *WorkspaceManager) InjectSource(ctx context.Context, volumeName, srcDir 
 
 // skipDirs is the set of directory names that should never be included in the
 // injected source tar. These are either too large, contain symlink structures
-// that break the tar walker (e.g. pnpm node_modules), or are generated
-// artifacts that don't belong in the build context.
+// that break the tar walker (e.g. pnpm node_modules), or are build artifacts
+// that don't belong in the build context.
 var skipDirs = map[string]bool{
 	"node_modules": true,
 	".git":         true,
 	"bin":          true,
-	"gen":          true,
 }
 
 // createTar creates a tar archive from a directory, skipping common
-// directories that should not be injected (node_modules, .git, bin, gen)
+// directories that should not be injected (node_modules, .git, bin)
 // and properly handling symlinks and directories.
 func createTar(srcDir string) (io.Reader, error) {
 	var buf bytes.Buffer
