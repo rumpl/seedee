@@ -6,8 +6,11 @@ package seedeev1connect
 
 import (
 	connect "connectrpc.com/connect"
-	_ "github.com/rumpl/seedee/gen/seedee/v1"
+	context "context"
+	errors "errors"
+	v1 "github.com/rumpl/seedee/gen/seedee/v1"
 	http "net/http"
+	strings "strings"
 )
 
 // This is a compile-time assertion to ensure that this generated file and the connect package are
@@ -22,8 +25,33 @@ const (
 	CIServiceName = "seedee.v1.CIService"
 )
 
+// These constants are the fully-qualified names of the RPCs defined in this package. They're
+// exposed at runtime as Spec.Procedure and as the final two segments of the HTTP route.
+//
+// Note that these are different from the fully-qualified method names used by
+// google.golang.org/protobuf/reflect/protoreflect. To convert from these constants to
+// reflection-formatted method names, remove the leading slash and convert the remaining slash to a
+// period.
+const (
+	// CIServiceRunPipelineProcedure is the fully-qualified name of the CIService's RunPipeline RPC.
+	CIServiceRunPipelineProcedure = "/seedee.v1.CIService/RunPipeline"
+	// CIServiceGetPipelineStatusProcedure is the fully-qualified name of the CIService's
+	// GetPipelineStatus RPC.
+	CIServiceGetPipelineStatusProcedure = "/seedee.v1.CIService/GetPipelineStatus"
+	// CIServiceCancelPipelineProcedure is the fully-qualified name of the CIService's CancelPipeline
+	// RPC.
+	CIServiceCancelPipelineProcedure = "/seedee.v1.CIService/CancelPipeline"
+)
+
 // CIServiceClient is a client for the seedee.v1.CIService service.
 type CIServiceClient interface {
+	// RunPipeline submits a pipeline for execution and streams back
+	// real-time events (logs, status changes) until completion.
+	RunPipeline(context.Context, *connect.Request[v1.RunPipelineRequest]) (*connect.ServerStreamForClient[v1.RunPipelineEvent], error)
+	// GetPipelineStatus returns the current state of a running or completed pipeline.
+	GetPipelineStatus(context.Context, *connect.Request[v1.GetPipelineStatusRequest]) (*connect.Response[v1.GetPipelineStatusResponse], error)
+	// CancelPipeline requests cancellation of a running pipeline.
+	CancelPipeline(context.Context, *connect.Request[v1.CancelPipelineRequest]) (*connect.Response[v1.CancelPipelineResponse], error)
 }
 
 // NewCIServiceClient constructs a client for the seedee.v1.CIService service. By default, it uses
@@ -34,15 +62,61 @@ type CIServiceClient interface {
 // The URL supplied here should be the base URL for the Connect or gRPC server (for example,
 // http://api.acme.com or https://acme.com/grpc).
 func NewCIServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) CIServiceClient {
-	return &cIServiceClient{}
+	baseURL = strings.TrimRight(baseURL, "/")
+	cIServiceMethods := v1.File_seedee_v1_seedee_proto.Services().ByName("CIService").Methods()
+	return &cIServiceClient{
+		runPipeline: connect.NewClient[v1.RunPipelineRequest, v1.RunPipelineEvent](
+			httpClient,
+			baseURL+CIServiceRunPipelineProcedure,
+			connect.WithSchema(cIServiceMethods.ByName("RunPipeline")),
+			connect.WithClientOptions(opts...),
+		),
+		getPipelineStatus: connect.NewClient[v1.GetPipelineStatusRequest, v1.GetPipelineStatusResponse](
+			httpClient,
+			baseURL+CIServiceGetPipelineStatusProcedure,
+			connect.WithSchema(cIServiceMethods.ByName("GetPipelineStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		cancelPipeline: connect.NewClient[v1.CancelPipelineRequest, v1.CancelPipelineResponse](
+			httpClient,
+			baseURL+CIServiceCancelPipelineProcedure,
+			connect.WithSchema(cIServiceMethods.ByName("CancelPipeline")),
+			connect.WithClientOptions(opts...),
+		),
+	}
 }
 
 // cIServiceClient implements CIServiceClient.
 type cIServiceClient struct {
+	runPipeline       *connect.Client[v1.RunPipelineRequest, v1.RunPipelineEvent]
+	getPipelineStatus *connect.Client[v1.GetPipelineStatusRequest, v1.GetPipelineStatusResponse]
+	cancelPipeline    *connect.Client[v1.CancelPipelineRequest, v1.CancelPipelineResponse]
+}
+
+// RunPipeline calls seedee.v1.CIService.RunPipeline.
+func (c *cIServiceClient) RunPipeline(ctx context.Context, req *connect.Request[v1.RunPipelineRequest]) (*connect.ServerStreamForClient[v1.RunPipelineEvent], error) {
+	return c.runPipeline.CallServerStream(ctx, req)
+}
+
+// GetPipelineStatus calls seedee.v1.CIService.GetPipelineStatus.
+func (c *cIServiceClient) GetPipelineStatus(ctx context.Context, req *connect.Request[v1.GetPipelineStatusRequest]) (*connect.Response[v1.GetPipelineStatusResponse], error) {
+	return c.getPipelineStatus.CallUnary(ctx, req)
+}
+
+// CancelPipeline calls seedee.v1.CIService.CancelPipeline.
+func (c *cIServiceClient) CancelPipeline(ctx context.Context, req *connect.Request[v1.CancelPipelineRequest]) (*connect.Response[v1.CancelPipelineResponse], error) {
+	return c.cancelPipeline.CallUnary(ctx, req)
 }
 
 // CIServiceHandler is an implementation of the seedee.v1.CIService service.
 type CIServiceHandler interface {
+	// RunPipeline submits a pipeline for execution and streams back
+	// real-time events (logs, status changes) until completion.
+	RunPipeline(context.Context, *connect.Request[v1.RunPipelineRequest], *connect.ServerStream[v1.RunPipelineEvent]) error
+	// GetPipelineStatus returns the current state of a running or completed pipeline.
+	GetPipelineStatus(context.Context, *connect.Request[v1.GetPipelineStatusRequest]) (*connect.Response[v1.GetPipelineStatusResponse], error)
+	// CancelPipeline requests cancellation of a running pipeline.
+	CancelPipeline(context.Context, *connect.Request[v1.CancelPipelineRequest]) (*connect.Response[v1.CancelPipelineResponse], error)
 }
 
 // NewCIServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -51,8 +125,33 @@ type CIServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewCIServiceHandler(svc CIServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	cIServiceMethods := v1.File_seedee_v1_seedee_proto.Services().ByName("CIService").Methods()
+	cIServiceRunPipelineHandler := connect.NewServerStreamHandler(
+		CIServiceRunPipelineProcedure,
+		svc.RunPipeline,
+		connect.WithSchema(cIServiceMethods.ByName("RunPipeline")),
+		connect.WithHandlerOptions(opts...),
+	)
+	cIServiceGetPipelineStatusHandler := connect.NewUnaryHandler(
+		CIServiceGetPipelineStatusProcedure,
+		svc.GetPipelineStatus,
+		connect.WithSchema(cIServiceMethods.ByName("GetPipelineStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	cIServiceCancelPipelineHandler := connect.NewUnaryHandler(
+		CIServiceCancelPipelineProcedure,
+		svc.CancelPipeline,
+		connect.WithSchema(cIServiceMethods.ByName("CancelPipeline")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/seedee.v1.CIService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case CIServiceRunPipelineProcedure:
+			cIServiceRunPipelineHandler.ServeHTTP(w, r)
+		case CIServiceGetPipelineStatusProcedure:
+			cIServiceGetPipelineStatusHandler.ServeHTTP(w, r)
+		case CIServiceCancelPipelineProcedure:
+			cIServiceCancelPipelineHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -61,3 +160,15 @@ func NewCIServiceHandler(svc CIServiceHandler, opts ...connect.HandlerOption) (s
 
 // UnimplementedCIServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedCIServiceHandler struct{}
+
+func (UnimplementedCIServiceHandler) RunPipeline(context.Context, *connect.Request[v1.RunPipelineRequest], *connect.ServerStream[v1.RunPipelineEvent]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("seedee.v1.CIService.RunPipeline is not implemented"))
+}
+
+func (UnimplementedCIServiceHandler) GetPipelineStatus(context.Context, *connect.Request[v1.GetPipelineStatusRequest]) (*connect.Response[v1.GetPipelineStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("seedee.v1.CIService.GetPipelineStatus is not implemented"))
+}
+
+func (UnimplementedCIServiceHandler) CancelPipeline(context.Context, *connect.Request[v1.CancelPipelineRequest]) (*connect.Response[v1.CancelPipelineResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("seedee.v1.CIService.CancelPipeline is not implemented"))
+}

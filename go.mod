@@ -1,7 +1,6 @@
 module github.com/rumpl/seedee
 
 go 1.24.0
-
 require (
 	connectrpc.com/connect v1.19.1
 	github.com/docker/docker v27.5.1+incompatible
