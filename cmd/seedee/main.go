@@ -1,3 +1,4 @@
+// Package main is the entry point for the seedee CLI.
 package main
 
 import "fmt"

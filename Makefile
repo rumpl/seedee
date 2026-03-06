@@ -1,4 +1,4 @@
-.PHONY: all build test lint proto clean
+.PHONY: all build test lint lint-fix proto clean
 
 all: proto build test lint
 
@@ -11,7 +11,11 @@ test:
 	go test ./...
 
 lint:
-	@echo "golangci-lint not yet configured"
+	golangci-lint run ./...
+
+.PHONY: lint-fix
+lint-fix:
+	golangci-lint run --fix ./...
 
 proto:
 	@echo "buf generate not yet configured"
