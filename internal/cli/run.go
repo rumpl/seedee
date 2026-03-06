@@ -45,6 +45,24 @@ With --server, the pipeline is sent to a remote seedee server.`,
 	}
 }
 
+// summaryPrinter is implemented by both event handler types so runLocal and
+// runRemote can call PrintSummary regardless of which handler is active.
+type summaryPrinter interface {
+	core.EventHandler
+	PrintSummary(result *core.PipelineResult)
+}
+
+func newEventHandler(isTTY bool) summaryPrinter {
+	if verbose {
+		return &terminalEventHandler{
+			out:    os.Stdout,
+			errOut: os.Stderr,
+			isTTY:  isTTY,
+		}
+	}
+	return newProgressHandler(os.Stdout, os.Stderr, isTTY)
+}
+
 func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 	// 1. Create Docker client
 	dockerClient, err := docker.NewClient()
@@ -73,11 +91,7 @@ func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 	})
 
 	// 4. Create event handler for terminal output
-	handler := &terminalEventHandler{
-		out:    os.Stdout,
-		errOut: os.Stderr,
-		isTTY:  isTerminal(),
-	}
+	handler := newEventHandler(isTerminal())
 
 	// 5. Create and run engine
 	engine := &core.Engine{
@@ -114,12 +128,8 @@ func runRemote(ctx context.Context, pipeline *core.Pipeline, addr string) error 
 		return wrapConnectError(err, addr)
 	}
 
-	// 4. Create terminal event handler
-	handler := &terminalEventHandler{
-		out:    os.Stdout,
-		errOut: os.Stderr,
-		isTTY:  isTerminal(),
-	}
+	// 4. Create event handler
+	handler := newEventHandler(isTerminal())
 
 	// 5. Read events from stream and display them
 	var lastStatus seedeev1.Status
