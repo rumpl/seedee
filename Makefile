@@ -1,4 +1,5 @@
-.PHONY: all build test lint lint-fix proto clean test-e2e test-e2e-remote test-e2e-local test-all
+.PHONY: all build test lint lint-fix proto clean test-e2e test-e2e-remote test-e2e-local test-all \
+	frontend-install frontend-dev frontend-build
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -49,3 +50,16 @@ test-e2e-local: build
 
 .PHONY: test-all
 test-all: test lint test-e2e-local
+
+# Frontend targets
+.PHONY: frontend-install
+frontend-install:
+	cd frontend && pnpm install
+
+.PHONY: frontend-dev
+frontend-dev:
+	cd frontend && pnpm run dev
+
+.PHONY: frontend-build
+frontend-build:
+	cd frontend && pnpm run build
