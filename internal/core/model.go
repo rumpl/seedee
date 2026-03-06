@@ -87,10 +87,11 @@ type StepResult struct {
 
 // JobResult summarizes the outcome of a job.
 type JobResult struct {
-	JobName string
-	Status  Status
-	Steps   []StepResult
-	Error   error
+	JobName  string
+	Status   Status
+	Steps    []StepResult
+	Duration time.Duration
+	Error    error
 }
 
 // PipelineResult summarizes the outcome of the entire pipeline.

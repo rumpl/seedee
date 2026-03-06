@@ -87,8 +87,9 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 				job.EndedAt = time.Now()
 				jobResultsMu.Lock()
 				jobResults[job.Name] = JobResult{
-					JobName: job.Name,
-					Status:  StatusCanceled,
+					JobName:  job.Name,
+					Status:   StatusCanceled,
+					Duration: 0,
 				}
 				jobResultsMu.Unlock()
 			}
@@ -130,8 +131,9 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 					failedMu.Unlock()
 					jobResultsMu.Lock()
 					jobResults[job.Name] = JobResult{
-						JobName: job.Name,
-						Status:  StatusSkipped,
+						JobName:  job.Name,
+						Status:   StatusSkipped,
+						Duration: 0,
 					}
 					jobResultsMu.Unlock()
 					return nil
@@ -249,10 +251,11 @@ func (e *Engine) executeJob(ctx context.Context, pipeline *Pipeline, job *Job) J
 		})
 
 		return JobResult{
-			JobName: job.Name,
-			Status:  StatusFailed,
-			Steps:   stepResults,
-			Error:   fmt.Errorf("setup failed: %w", err),
+			JobName:  job.Name,
+			Status:   StatusFailed,
+			Steps:    stepResults,
+			Duration: jobDuration,
+			Error:    fmt.Errorf("setup failed: %w", err),
 		}
 	}
 
@@ -395,10 +398,11 @@ func (e *Engine) executeJob(ctx context.Context, pipeline *Pipeline, job *Job) J
 		})
 
 		return JobResult{
-			JobName: job.Name,
-			Status:  StatusFailed,
-			Steps:   stepResults,
-			Error:   job.Error,
+			JobName:  job.Name,
+			Status:   StatusFailed,
+			Steps:    stepResults,
+			Duration: jobDuration,
+			Error:    job.Error,
 		}
 	}
 
@@ -415,9 +419,10 @@ func (e *Engine) executeJob(ctx context.Context, pipeline *Pipeline, job *Job) J
 	})
 
 	return JobResult{
-		JobName: job.Name,
-		Status:  StatusSuccess,
-		Steps:   stepResults,
+		JobName:  job.Name,
+		Status:   StatusSuccess,
+		Steps:    stepResults,
+		Duration: jobDuration,
 	}
 }
 
