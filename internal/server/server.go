@@ -15,9 +15,11 @@ import (
 	"github.com/rumpl/seedee/gen/seedee/v1/seedeev1connect"
 )
 
-var (
-	errGetPipelineStatusNotImplemented = errors.New("seedee.v1.CIService.GetPipelineStatus is not implemented")
-	errCancelPipelineNotImplemented    = errors.New("seedee.v1.CIService.CancelPipeline is not implemented")
+const (
+	// pruneInterval is how often the server checks for old pipeline runs.
+	pruneInterval = 5 * time.Minute
+	// pruneMaxAge is the maximum age of a completed pipeline run before it is pruned.
+	pruneMaxAge = 1 * time.Hour
 )
 
 // Server is an HTTP/2 server hosting ConnectRPC handlers.
@@ -56,6 +58,20 @@ func (s *Server) Start(ctx context.Context) error {
 		Addr:    s.cfg.Addr,
 		Handler: h2cHandler,
 	}
+
+	// Start background goroutine to prune old completed pipeline runs.
+	go func() {
+		ticker := time.NewTicker(pruneInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.handler.PruneOldRuns(pruneMaxAge)
+			}
+		}
+	}()
 
 	go func() {
 		<-ctx.Done()

@@ -126,24 +126,38 @@ func TestServer_RunPipeline_NilPipeline(t *testing.T) {
 	assertConnectCode(t, stream.Err(), connect.CodeInvalidArgument)
 }
 
-func TestServer_UnimplementedRPCs(t *testing.T) {
+func TestServer_ImplementedRPCs(t *testing.T) {
 	baseURL, cancel := startTestServer(t)
 	defer cancel()
 
 	client := seedeev1connect.NewCIServiceClient(http.DefaultClient, baseURL)
 
-	t.Run("GetPipelineStatus", func(t *testing.T) {
+	t.Run("GetPipelineStatus_EmptyID", func(t *testing.T) {
 		_, err := client.GetPipelineStatus(context.Background(), connect.NewRequest(&seedeev1.GetPipelineStatusRequest{
-			PipelineId: "test-id",
+			PipelineId: "",
 		}))
-		assertConnectCode(t, err, connect.CodeUnimplemented)
+		assertConnectCode(t, err, connect.CodeInvalidArgument)
 	})
 
-	t.Run("CancelPipeline", func(t *testing.T) {
-		_, err := client.CancelPipeline(context.Background(), connect.NewRequest(&seedeev1.CancelPipelineRequest{
-			PipelineId: "test-id",
+	t.Run("GetPipelineStatus_NotFound", func(t *testing.T) {
+		_, err := client.GetPipelineStatus(context.Background(), connect.NewRequest(&seedeev1.GetPipelineStatusRequest{
+			PipelineId: "nonexistent-id",
 		}))
-		assertConnectCode(t, err, connect.CodeUnimplemented)
+		assertConnectCode(t, err, connect.CodeNotFound)
+	})
+
+	t.Run("CancelPipeline_EmptyID", func(t *testing.T) {
+		_, err := client.CancelPipeline(context.Background(), connect.NewRequest(&seedeev1.CancelPipelineRequest{
+			PipelineId: "",
+		}))
+		assertConnectCode(t, err, connect.CodeInvalidArgument)
+	})
+
+	t.Run("CancelPipeline_NotFound", func(t *testing.T) {
+		_, err := client.CancelPipeline(context.Background(), connect.NewRequest(&seedeev1.CancelPipelineRequest{
+			PipelineId: "nonexistent-id",
+		}))
+		assertConnectCode(t, err, connect.CodeNotFound)
 	})
 }
 
