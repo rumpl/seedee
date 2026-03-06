@@ -4,37 +4,37 @@ This document describes the internal design of seedee.
 
 ## System Diagram
 
-```
-                         ┌──────────────────────────────────┐
-                         │           User / CI              │
-                         └──────────┬───────────────────────┘
-                                    │
-                          seedee CLI (cobra)
-                         ┌──────────┴───────────────────────┐
-                         │  local mode    │   remote mode    │
-                         │                │                  │
-                         │  ┌──────────┐  │  ┌────────────┐ │
-                         │  │  Engine   │  │  │ ConnectRPC │ │
-                         │  │ (in-proc) │  │  │  Client    │ │
-                         │  └────┬─────┘  │  └─────┬──────┘ │
-                         └───────┼────────┘        │        ─┘
-                                 │            HTTP/2 (h2c)
-                                 │                 │
-                                 │        ┌────────┴────────┐
-                                 │        │  seedeed Server  │
-                                 │        │  (ConnectRPC)    │
-                                 │        │  ┌────────────┐  │
-                                 │        │  │   Engine    │  │
-                                 │        │  └─────┬──────┘  │
-                                 │        └────────┼─────────┘
-                                 │                 │
-                         ┌───────┴─────────────────┴────────┐
-                         │          Docker Runner            │
-                         │  ┌──────────────────────────────┐│
-                         │  │  per-job workspace volumes    ││
-                         │  │  per-step containers          ││
-                         │  └──────────────────────────────┘│
-                         └──────────────────────────────────┘
+```mermaid
+flowchart TD
+    User["User / CI"]
+    CLI["seedee CLI (cobra)"]
+
+    User --> CLI
+
+    subgraph Local Mode
+        EngineLocal["Engine (in-proc)"]
+    end
+
+    subgraph Remote Mode
+        ConnectClient["ConnectRPC Client"]
+    end
+
+    CLI --> EngineLocal
+    CLI --> ConnectClient
+
+    ConnectClient -- "HTTP/2 (h2c)" --> Server
+
+    subgraph Server ["seedeed Server (ConnectRPC)"]
+        EngineRemote["Engine"]
+    end
+
+    subgraph DockerRunner ["Docker Runner"]
+        Volumes["per-job workspace volumes"]
+        Containers["per-step containers"]
+    end
+
+    EngineLocal --> DockerRunner
+    EngineRemote --> DockerRunner
 ```
 
 ## Package Overview
@@ -105,30 +105,23 @@ runs periodically.
 
 ## Data Flow
 
-```
-.seedee.yml
-    │
-    ▼
-LoadConfig()          Parse YAML, validate structure, detect cycles
-    │
-    ▼
-NewPipelineFromConfig()   Merge env vars, generate pipeline ID, build runtime model
-    │
-    ▼
-Schedule()            Topological sort into ExecutionGroups using Kahn's algorithm
-    │
-    ▼
-Engine.Execute()      For each group:
-    │                   - Run all jobs in parallel (errgroup)
-    │                   For each job:
-    │                     - Runner.Setup() — pull image, create volume, inject source
-    │                     - Runner.RunStep() — for each step, run container
-    │                     - Runner.Teardown() — remove volume
-    │                   Emit events at each state transition
-    │
-    ▼
-EventHandler          Local: terminalEventHandler writes to stdout
-                      Remote: streamEventHandler sends proto events over gRPC
+```mermaid
+flowchart TD
+    YAML[".seedee.yml"]
+    LoadConfig["LoadConfig()\nParse YAML, validate structure, detect cycles"]
+    NewPipeline["NewPipelineFromConfig()\nMerge env vars, generate pipeline ID, build runtime model"]
+    Schedule["Schedule()\nTopological sort into ExecutionGroups\nusing Kahn's algorithm"]
+    Execute["Engine.Execute()"]
+    EventHandler["EventHandler"]
+
+    YAML --> LoadConfig --> NewPipeline --> Schedule --> Execute --> EventHandler
+
+    Execute -.- Groups["For each group:\nrun all jobs in parallel (errgroup)"]
+    Groups -.- Jobs["For each job:\n1. Runner.Setup() — pull image, create volume, inject source\n2. Runner.RunStep() — for each step, run container\n3. Runner.Teardown() — remove volume"]
+    Jobs -.- Events["Emit events at each state transition"]
+
+    EventHandler --- Local["Local: terminalEventHandler\nwrites to stdout"]
+    EventHandler --- Remote["Remote: streamEventHandler\nsends proto events over gRPC"]
 ```
 
 ## Runner Interface and Custom Runners
