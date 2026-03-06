@@ -31,14 +31,18 @@ func TestRunCmd_LoadsConfigAndRunsLocal(t *testing.T) {
 		// In most test environments, Docker isn't available, so we expect an error.
 		return
 	}
-	// Should get past config loading and hit Docker connection error
-	// (not "not yet implemented" anymore)
+	// Should get past config loading and into the execution path
+	// (not "not yet implemented" anymore).
 	if strings.Contains(err.Error(), "not yet implemented") {
 		t.Errorf("runLocal should no longer return 'not yet implemented', got: %v", err)
 	}
-	// Should mention Docker in the error
-	if !strings.Contains(err.Error(), "Docker") && !strings.Contains(err.Error(), "docker") {
-		t.Errorf("expected Docker-related error, got: %v", err)
+	// When Docker is not installed the error mentions "docker"; when the
+	// daemon IS reachable the pipeline runs but fails (e.g. image pull),
+	// producing a "pipeline failed" or "execution" error instead.
+	isDockerErr := strings.Contains(err.Error(), "Docker") || strings.Contains(err.Error(), "docker")
+	isPipelineErr := strings.Contains(err.Error(), "pipeline") || strings.Contains(err.Error(), "execution")
+	if !isDockerErr && !isPipelineErr {
+		t.Errorf("expected Docker or pipeline-related error, got: %v", err)
 	}
 }
 
