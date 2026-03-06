@@ -31,7 +31,7 @@ proto:
 	$(MAKE) proto-frontend
 
 .PHONY: proto-frontend
-proto-frontend:
+proto-frontend: frontend-install
 	rm -rf frontend/src/gen/
 	buf generate proto --template buf.gen.frontend.yaml
 
