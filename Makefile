@@ -25,6 +25,7 @@ lint-fix:
 	golangci-lint run --fix ./...
 
 proto:
+	rm -rf gen/
 	buf generate
 
 .PHONY: proto-lint
