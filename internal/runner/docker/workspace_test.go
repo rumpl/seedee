@@ -231,8 +231,17 @@ func TestCreateTar_SkipsBinAndGen(t *testing.T) {
 	}
 
 	entries := tarEntries(t, reader)
-	if len(entries) != 1 || entries[0] != "main.go" {
-		t.Fatalf("expected [main.go], got %v", entries)
+	sort.Strings(entries)
+
+	// bin/ is still skipped, but gen/ is now included.
+	expected := []string{"gen", "gen/output", "main.go"}
+	if len(entries) != len(expected) {
+		t.Fatalf("expected %v, got %v", expected, entries)
+	}
+	for i, e := range expected {
+		if entries[i] != e {
+			t.Errorf("entry %d: expected %q, got %q", i, e, entries[i])
+		}
 	}
 }
 
