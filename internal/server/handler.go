@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -89,7 +90,15 @@ func (h *CIServiceHandler) RunPipeline(
 	}
 	defer func() { _ = dockerClient.Close() }()
 
-	runner := docker.NewRunner(dockerClient)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("getting working directory: %w", err))
+	}
+
+	runner := docker.NewRunnerWithConfig(dockerClient, docker.RunnerConfig{
+		SourceDir:  cwd,
+		PipelineID: pipeline.ID,
+	})
 
 	// 7. Create and run engine
 	engine := &core.Engine{
