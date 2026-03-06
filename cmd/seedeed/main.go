@@ -35,11 +35,12 @@ func main() {
 	}))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer cancel()
 
 	srv := server.NewServer(cfg, logger)
 	if err := srv.Start(ctx); err != nil {
+		cancel()
 		logger.Error("server failed", "error", err)
 		os.Exit(1)
 	}
+	cancel()
 }

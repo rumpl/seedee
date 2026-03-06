@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -45,7 +46,11 @@ func assertConnectCodeUnit(t *testing.T, err error, want connect.Code) {
 		t.Fatal("expected error, got nil")
 	}
 	var connectErr *connect.Error
-	if ok := err.(*connect.Error); ok != nil {
+	if ok := func() *connect.Error {
+		target := &connect.Error{}
+		_ = errors.As(err, &target)
+		return target
+	}(); ok != nil {
 		connectErr = ok
 	}
 	if connectErr == nil {

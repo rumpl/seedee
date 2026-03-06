@@ -6,7 +6,7 @@ import "fmt"
 type StdoutEventHandler struct{}
 
 // HandleEvent prints a human-readable representation of the event to stdout.
-func (h *StdoutEventHandler) HandleEvent(event Event) error {
+func (h *StdoutEventHandler) HandleEvent(event *Event) error {
 	switch event.Type {
 	case EventPipelineStarted:
 		fmt.Printf("=== Pipeline %q started ===\n", event.PipelineName)

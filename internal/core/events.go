@@ -9,6 +9,7 @@ import (
 // EventType identifies what kind of event occurred.
 type EventType string
 
+// Event types emitted during pipeline execution.
 const (
 	EventPipelineStarted  EventType = "pipeline_started"
 	EventPipelineFinished EventType = "pipeline_finished"
@@ -46,7 +47,7 @@ type Event struct {
 
 // EventHandler receives events from the engine.
 type EventHandler interface {
-	HandleEvent(event Event) error
+	HandleEvent(event *Event) error
 }
 
 // MultiEventHandler fans out events to multiple handlers.
@@ -55,7 +56,7 @@ type MultiEventHandler struct {
 }
 
 // HandleEvent sends the event to all registered handlers.
-func (m *MultiEventHandler) HandleEvent(event Event) error {
+func (m *MultiEventHandler) HandleEvent(event *Event) error {
 	for _, h := range m.Handlers {
 		if err := h.HandleEvent(event); err != nil {
 			return fmt.Errorf("dispatching %s event: %w", event.Type, err)
@@ -71,9 +72,9 @@ type BufferedEventHandler struct {
 }
 
 // HandleEvent appends the event to the buffer in a thread-safe manner.
-func (h *BufferedEventHandler) HandleEvent(event Event) error {
+func (h *BufferedEventHandler) HandleEvent(event *Event) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.Events = append(h.Events, event)
+	h.Events = append(h.Events, *event)
 	return nil
 }

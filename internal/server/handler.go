@@ -87,9 +87,9 @@ func (h *CIServiceHandler) RunPipeline(
 	if err != nil {
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("creating docker client: %w", err))
 	}
-	defer dockerClient.Close()
+	defer func() { _ = dockerClient.Close() }()
 
-	runner := docker.NewDockerRunner(dockerClient)
+	runner := docker.NewRunner(dockerClient)
 
 	// 7. Create and run engine
 	engine := &core.Engine{
@@ -220,7 +220,7 @@ type streamEventHandler struct {
 // HandleEvent converts a core.Event to protobuf and sends it immediately
 // on the gRPC stream. No buffering — each event is flushed as a separate
 // HTTP/2 data frame.
-func (h *streamEventHandler) HandleEvent(event core.Event) error {
+func (h *streamEventHandler) HandleEvent(event *core.Event) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 

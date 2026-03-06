@@ -42,7 +42,7 @@ func TestInjectSource(t *testing.T) {
 
 	// Run a container that lists /workspace and verify files.
 	var stdout, stderr bytes.Buffer
-	exitCode, err := c.RunContainer(ctx, RunOptions{
+	exitCode, err := c.RunContainer(ctx, &RunOptions{
 		Image:   "alpine:latest",
 		Command: "cat /workspace/hello.txt",
 		Binds:   []string{volName + ":/workspace"},
@@ -95,7 +95,7 @@ func TestInjectSource_Subdirectories(t *testing.T) {
 
 	// Verify tree structure is preserved.
 	var stdout, stderr bytes.Buffer
-	exitCode, err := c.RunContainer(ctx, RunOptions{
+	exitCode, err := c.RunContainer(ctx, &RunOptions{
 		Image:   "alpine:latest",
 		Command: "cat /workspace/src/pkg/deep.txt && echo '---' && cat /workspace/root.txt",
 		Binds:   []string{volName + ":/workspace"},
@@ -142,7 +142,7 @@ func TestInjectSource_EmptyDir(t *testing.T) {
 
 	// Verify /workspace is empty.
 	var stdout, stderr bytes.Buffer
-	exitCode, err := c.RunContainer(ctx, RunOptions{
+	exitCode, err := c.RunContainer(ctx, &RunOptions{
 		Image:   "alpine:latest",
 		Command: "ls -A /workspace | wc -l",
 		Binds:   []string{volName + ":/workspace"},
@@ -248,7 +248,7 @@ func TestRunnerWithSourceInjection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := NewDockerRunnerWithConfig(c, DockerRunnerConfig{
+	r := NewRunnerWithConfig(c, RunnerConfig{
 		SourceDir:  tmpDir,
 		PipelineID: "test-runner-inject",
 	})

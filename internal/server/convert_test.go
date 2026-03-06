@@ -414,7 +414,7 @@ func TestEventToProto(t *testing.T) {
 		Duration:     5 * time.Second,
 	}
 
-	pe := EventToProto(event)
+	pe := EventToProto(&event)
 	if pe.PipelineId != "pipe-1" {
 		t.Errorf("PipelineId = %q, want %q", pe.PipelineId, "pipe-1")
 	}
@@ -454,7 +454,7 @@ func TestEventToProto_ZeroTimestamp(t *testing.T) {
 	event := core.Event{
 		Type: core.EventPipelineStarted,
 	}
-	pe := EventToProto(event)
+	pe := EventToProto(&event)
 	if pe.Timestamp != nil {
 		t.Error("Timestamp should be nil for zero time")
 	}

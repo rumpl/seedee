@@ -474,7 +474,7 @@ pipeline:
 `
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, ".seedee.yml")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write temp file: %v", err)
 	}
 

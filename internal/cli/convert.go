@@ -37,7 +37,7 @@ func pipelineToProtoRequest(p *core.Pipeline) *seedeev1.RunPipelineRequest {
 }
 
 // protoEventToCore converts a protobuf RunPipelineEvent to a core Event.
-func protoEventToCore(pe *seedeev1.RunPipelineEvent) core.Event {
+func protoEventToCore(pe *seedeev1.RunPipelineEvent) *core.Event {
 	var ts time.Time
 	if pe.GetTimestamp() != nil {
 		ts = pe.GetTimestamp().AsTime()
@@ -48,7 +48,7 @@ func protoEventToCore(pe *seedeev1.RunPipelineEvent) core.Event {
 		dur = pe.GetDuration().AsDuration()
 	}
 
-	return core.Event{
+	return &core.Event{
 		Type:       protoEventTypeToCore(pe.GetType()),
 		Timestamp:  ts,
 		PipelineID: pe.GetPipelineId(),

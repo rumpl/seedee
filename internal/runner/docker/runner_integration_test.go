@@ -11,16 +11,16 @@ import (
 	"github.com/rumpl/seedee/internal/core"
 )
 
-func newTestRunner(t *testing.T) *DockerRunner {
+func newTestRunner(t *testing.T) *Runner {
 	t.Helper()
 
 	c, err := NewClient()
 	if err != nil {
 		t.Fatalf("creating docker client: %v", err)
 	}
-	t.Cleanup(func() { c.Close() })
+	t.Cleanup(func() { _ = c.Close() })
 
-	return NewDockerRunner(c)
+	return NewRunner(c)
 }
 
 func TestRunnerSimpleStep(t *testing.T) {

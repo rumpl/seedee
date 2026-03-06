@@ -13,7 +13,7 @@ func isTerminal() bool {
 }
 
 // colorize wraps text with an ANSI escape code when tty is true.
-func colorize(tty bool, code string, text string) string {
+func colorize(tty bool, code, text string) string {
 	if !tty {
 		return text
 	}

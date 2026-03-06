@@ -10,7 +10,7 @@ import (
 )
 
 // EventToProto converts a core.Event to a protobuf RunPipelineEvent.
-func EventToProto(e core.Event) *seedeev1.RunPipelineEvent {
+func EventToProto(e *core.Event) *seedeev1.RunPipelineEvent {
 	pe := &seedeev1.RunPipelineEvent{
 		PipelineId: e.PipelineID,
 		Type:       EventTypeToProto(e.Type),

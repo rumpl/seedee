@@ -36,7 +36,7 @@ func (w *WorkspaceManager) InjectSource(ctx context.Context, volumeName, srcDir 
 		return fmt.Errorf("creating helper container: %w", err)
 	}
 	defer func() {
-		_ = w.client.cli.ContainerRemove(ctx, resp.ID, container.RemoveOptions{Force: true}) //nolint:errcheck // best-effort cleanup of helper container
+		_ = w.client.cli.ContainerRemove(ctx, resp.ID, container.RemoveOptions{Force: true})
 	}()
 
 	// Create tar of srcDir.

@@ -17,7 +17,7 @@ func TestNewPipelineFromConfig_Simple(t *testing.T) {
 					},
 				},
 				"test": {
-					Image: "golang:1.22",
+					Image:     "golang:1.22",
 					DependsOn: []string{"build"},
 					Steps: []StepDef{
 						{Name: "unit", Run: "go test ./..."},

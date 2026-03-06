@@ -27,7 +27,7 @@ func startTestServer(t *testing.T) (baseURL string, cancel context.CancelFunc) {
 		t.Fatal(err)
 	}
 	addr := ln.Addr().String()
-	ln.Close()
+	_ = ln.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	ctx, cancelFn := context.WithCancel(context.Background())
@@ -45,7 +45,7 @@ func startTestServer(t *testing.T) (baseURL string, cancel context.CancelFunc) {
 	for time.Now().Before(deadline) {
 		conn, dialErr := net.DialTimeout("tcp", addr, 100*time.Millisecond)
 		if dialErr == nil {
-			conn.Close()
+			_ = conn.Close()
 			return "http://" + addr, cancelFn
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -64,7 +64,7 @@ func TestServer_HealthCheck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /healthz: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
@@ -88,7 +88,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /healthz before shutdown: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Cancel context to trigger graceful shutdown.
 	cancel()

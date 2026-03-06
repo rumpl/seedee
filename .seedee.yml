@@ -22,4 +22,4 @@ pipeline:
         - test
       steps:
         - name: Build binaries
-          run: cd /workspace && go build -o /workspace/bin/seedee ./cmd/seedee && go build -o /workspace/bin/seedeed ./cmd/seedeed
+          run: cd /workspace && go build -buildvcs=false -o /workspace/bin/seedee ./cmd/seedee && go build -buildvcs=false -o /workspace/bin/seedeed ./cmd/seedeed
