@@ -16,7 +16,6 @@ import (
 )
 
 var (
-	errRunPipelineNotImplemented       = errors.New("seedee.v1.CIService.RunPipeline is not implemented")
 	errGetPipelineStatusNotImplemented = errors.New("seedee.v1.CIService.GetPipelineStatus is not implemented")
 	errCancelPipelineNotImplemented    = errors.New("seedee.v1.CIService.CancelPipeline is not implemented")
 )
