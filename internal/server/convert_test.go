@@ -365,3 +365,100 @@ func TestPipelineStatusToProto_PendingJobs(t *testing.T) {
 		t.Error("Step Duration should be nil for pending step")
 	}
 }
+
+func TestEventTypeToProto(t *testing.T) {
+	tests := []struct {
+		core  core.EventType
+		proto seedeev1.EventType
+	}{
+		{core.EventPipelineStarted, seedeev1.EventType_EVENT_TYPE_PIPELINE_STARTED},
+		{core.EventPipelineFinished, seedeev1.EventType_EVENT_TYPE_PIPELINE_FINISHED},
+		{core.EventJobStarted, seedeev1.EventType_EVENT_TYPE_JOB_STARTED},
+		{core.EventJobFinished, seedeev1.EventType_EVENT_TYPE_JOB_FINISHED},
+		{core.EventJobSkipped, seedeev1.EventType_EVENT_TYPE_JOB_SKIPPED},
+		{core.EventStepStarted, seedeev1.EventType_EVENT_TYPE_STEP_STARTED},
+		{core.EventStepFinished, seedeev1.EventType_EVENT_TYPE_STEP_FINISHED},
+		{core.EventStepLog, seedeev1.EventType_EVENT_TYPE_STEP_LOG},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.core), func(t *testing.T) {
+			got := EventTypeToProto(tt.core)
+			if got != tt.proto {
+				t.Errorf("EventTypeToProto(%q) = %v, want %v", tt.core, got, tt.proto)
+			}
+		})
+	}
+}
+
+func TestEventTypeToProto_Unknown(t *testing.T) {
+	got := EventTypeToProto(core.EventType("bogus"))
+	if got != seedeev1.EventType_EVENT_TYPE_UNSPECIFIED {
+		t.Errorf("EventTypeToProto(bogus) = %v, want UNSPECIFIED", got)
+	}
+}
+
+func TestEventToProto(t *testing.T) {
+	ts := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+	event := core.Event{
+		Type:         core.EventStepLog,
+		Timestamp:    ts,
+		PipelineID:   "pipe-1",
+		PipelineName: "my-pipeline",
+		JobName:      "build",
+		StepName:     "compile",
+		LogData:      []byte("hello world"),
+		IsStderr:     true,
+		Status:       core.StatusRunning,
+		ExitCode:     42,
+		Error:        "some error",
+		Duration:     5 * time.Second,
+	}
+
+	pe := EventToProto(event)
+	if pe.PipelineId != "pipe-1" {
+		t.Errorf("PipelineId = %q, want %q", pe.PipelineId, "pipe-1")
+	}
+	if pe.Type != seedeev1.EventType_EVENT_TYPE_STEP_LOG {
+		t.Errorf("Type = %v, want STEP_LOG", pe.Type)
+	}
+	if !pe.Timestamp.AsTime().Equal(ts) {
+		t.Errorf("Timestamp = %v, want %v", pe.Timestamp.AsTime(), ts)
+	}
+	if pe.JobName != "build" {
+		t.Errorf("JobName = %q, want %q", pe.JobName, "build")
+	}
+	if pe.StepName != "compile" {
+		t.Errorf("StepName = %q, want %q", pe.StepName, "compile")
+	}
+	if string(pe.LogData) != "hello world" {
+		t.Errorf("LogData = %q, want %q", string(pe.LogData), "hello world")
+	}
+	if !pe.IsStderr {
+		t.Error("IsStderr should be true")
+	}
+	if pe.Status != seedeev1.Status_STATUS_RUNNING {
+		t.Errorf("Status = %v, want STATUS_RUNNING", pe.Status)
+	}
+	if pe.ExitCode != 42 {
+		t.Errorf("ExitCode = %d, want 42", pe.ExitCode)
+	}
+	if pe.Error != "some error" {
+		t.Errorf("Error = %q, want %q", pe.Error, "some error")
+	}
+	if pe.Duration == nil || pe.Duration.AsDuration() != 5*time.Second {
+		t.Errorf("Duration = %v, want 5s", pe.Duration)
+	}
+}
+
+func TestEventToProto_ZeroTimestamp(t *testing.T) {
+	event := core.Event{
+		Type: core.EventPipelineStarted,
+	}
+	pe := EventToProto(event)
+	if pe.Timestamp != nil {
+		t.Error("Timestamp should be nil for zero time")
+	}
+	if pe.Duration != nil {
+		t.Error("Duration should be nil for zero duration")
+	}
+}

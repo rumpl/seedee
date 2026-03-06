@@ -774,3 +774,174 @@ func TestEngine_StdoutEventHandler(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestEventLogAdapter_ChunksLargeWrites(t *testing.T) {
+	handler := &BufferedEventHandler{}
+	adapter := &eventLogAdapter{
+		handler:      handler,
+		pipelineID:   "pipe-chunk",
+		pipelineName: "chunk-test",
+		job:          "job",
+		step:         "step",
+		isStderr:     false,
+	}
+
+	// Write data larger than maxLogChunkSize (64KB)
+	bigData := make([]byte, maxLogChunkSize*2+1000)
+	for i := range bigData {
+		bigData[i] = byte('A' + (i % 26))
+	}
+
+	n, err := adapter.Write(bigData)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if n != len(bigData) {
+		t.Errorf("expected n=%d, got %d", len(bigData), n)
+	}
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	// Should have 3 events: 64KB, 64KB, 1000B
+	if len(handler.Events) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(handler.Events))
+	}
+
+	if len(handler.Events[0].LogData) != maxLogChunkSize {
+		t.Errorf("event 0 size = %d, want %d", len(handler.Events[0].LogData), maxLogChunkSize)
+	}
+	if len(handler.Events[1].LogData) != maxLogChunkSize {
+		t.Errorf("event 1 size = %d, want %d", len(handler.Events[1].LogData), maxLogChunkSize)
+	}
+	if len(handler.Events[2].LogData) != 1000 {
+		t.Errorf("event 2 size = %d, want 1000", len(handler.Events[2].LogData))
+	}
+
+	// Verify data integrity
+	var reassembled []byte
+	for _, evt := range handler.Events {
+		reassembled = append(reassembled, evt.LogData...)
+	}
+	if len(reassembled) != len(bigData) {
+		t.Fatalf("reassembled length = %d, want %d", len(reassembled), len(bigData))
+	}
+	for i := range bigData {
+		if reassembled[i] != bigData[i] {
+			t.Fatalf("data mismatch at byte %d", i)
+		}
+	}
+}
+
+func TestEventLogAdapter_SmallWriteNoChunking(t *testing.T) {
+	handler := &BufferedEventHandler{}
+	adapter := &eventLogAdapter{
+		handler:      handler,
+		pipelineID:   "pipe-small",
+		pipelineName: "small-test",
+		job:          "job",
+		step:         "step",
+		isStderr:     false,
+	}
+
+	n, err := adapter.Write([]byte("hello"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if n != 5 {
+		t.Errorf("expected n=5, got %d", n)
+	}
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	if len(handler.Events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(handler.Events))
+	}
+	if string(handler.Events[0].LogData) != "hello" {
+		t.Errorf("expected 'hello', got %q", string(handler.Events[0].LogData))
+	}
+}
+
+func TestEventLogAdapter_CopiesBytes(t *testing.T) {
+	// Verify the adapter copies the byte slice so the caller can reuse the buffer.
+	handler := &BufferedEventHandler{}
+	adapter := &eventLogAdapter{
+		handler:      handler,
+		pipelineID:   "pipe-copy",
+		pipelineName: "copy-test",
+		job:          "job",
+		step:         "step",
+		isStderr:     false,
+	}
+
+	buf := []byte("original")
+	_, err := adapter.Write(buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Mutate the original buffer
+	copy(buf, "MUTATED!")
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	if string(handler.Events[0].LogData) != "original" {
+		t.Errorf("expected 'original', got %q — byte slice was not copied", string(handler.Events[0].LogData))
+	}
+}
+
+func TestEventLogAdapter_ExactChunkBoundary(t *testing.T) {
+	handler := &BufferedEventHandler{}
+	adapter := &eventLogAdapter{
+		handler: handler,
+		job:     "job",
+		step:    "step",
+	}
+
+	// Write exactly maxLogChunkSize — should produce exactly 1 event
+	data := make([]byte, maxLogChunkSize)
+	n, err := adapter.Write(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if n != maxLogChunkSize {
+		t.Errorf("expected n=%d, got %d", maxLogChunkSize, n)
+	}
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	if len(handler.Events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(handler.Events))
+	}
+	if len(handler.Events[0].LogData) != maxLogChunkSize {
+		t.Errorf("event size = %d, want %d", len(handler.Events[0].LogData), maxLogChunkSize)
+	}
+}
+
+func TestEventLogAdapter_HandlerError(t *testing.T) {
+	errHandler := &errHandlerCore{err: fmt.Errorf("write failed")}
+	adapter := &eventLogAdapter{
+		handler: errHandler,
+		job:     "job",
+		step:    "step",
+	}
+
+	_, err := adapter.Write([]byte("data"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err.Error() != "write failed" {
+		t.Errorf("expected 'write failed', got %q", err.Error())
+	}
+}
+
+type errHandlerCore struct {
+	err error
+}
+
+func (h *errHandlerCore) HandleEvent(Event) error {
+	return h.err
+}

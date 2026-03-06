@@ -1,4 +1,4 @@
-.PHONY: all build test lint lint-fix proto clean test-e2e test-e2e-remote
+.PHONY: all build test lint lint-fix proto clean test-e2e test-e2e-remote test-e2e-local test-all
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -42,3 +42,10 @@ test-e2e-remote: build
 
 .PHONY: test-e2e
 test-e2e: test-e2e-remote
+
+.PHONY: test-e2e-local
+test-e2e-local: build
+	go test -tags=e2e -v -timeout=5m ./test/ -run TestE2E_Local
+
+.PHONY: test-all
+test-all: test lint test-e2e-local
