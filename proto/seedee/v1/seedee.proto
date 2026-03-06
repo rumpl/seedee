@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package seedee.v1;
+
+option go_package = "github.com/rumpl/seedee/gen/seedee/v1;seedeev1";
+
+// Stub service — will be filled in later
+service CIService {
+  // Placeholder
+}

@@ -18,7 +18,11 @@ lint-fix:
 	golangci-lint run --fix ./...
 
 proto:
-	@echo "buf generate not yet configured"
+	buf generate
+
+.PHONY: proto-lint
+proto-lint:
+	buf lint
 
 clean:
 	rm -rf bin/
