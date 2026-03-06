@@ -1,4 +1,4 @@
-.PHONY: all build test lint lint-fix proto clean test-e2e test-e2e-remote test-e2e-local test-all \
+.PHONY: all build test lint lint-fix proto proto-frontend clean test-e2e test-e2e-remote test-e2e-local test-all \
 	frontend-install frontend-dev frontend-build
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -28,6 +28,12 @@ lint-fix:
 proto:
 	rm -rf gen/
 	buf generate
+	$(MAKE) proto-frontend
+
+.PHONY: proto-frontend
+proto-frontend:
+	rm -rf frontend/src/gen/
+	buf generate proto --template buf.gen.frontend.yaml
 
 .PHONY: proto-lint
 proto-lint:
@@ -36,6 +42,7 @@ proto-lint:
 clean:
 	rm -rf bin/
 	find gen/ -type f ! -name '.gitkeep' -delete 2>/dev/null || true
+	rm -rf frontend/src/gen/
 
 .PHONY: test-e2e-remote
 test-e2e-remote: build
