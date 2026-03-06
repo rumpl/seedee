@@ -106,25 +106,30 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	t.Error("server did not shut down within timeout")
 }
 
-func TestServer_UnimplementedRPCs(t *testing.T) {
+func TestServer_RunPipeline_NilPipeline(t *testing.T) {
 	baseURL, cancel := startTestServer(t)
 	defer cancel()
 
 	client := seedeev1connect.NewCIServiceClient(http.DefaultClient, baseURL)
 
-	t.Run("RunPipeline", func(t *testing.T) {
-		stream, err := client.RunPipeline(context.Background(), connect.NewRequest(&seedeev1.RunPipelineRequest{}))
-		if err != nil {
-			// Some implementations may return error immediately.
-			assertConnectCode(t, err, connect.CodeUnimplemented)
-			return
-		}
-		// Try to receive; the server should close with Unimplemented.
-		if stream.Receive() {
-			t.Error("expected no messages from unimplemented stream")
-		}
-		assertConnectCode(t, stream.Err(), connect.CodeUnimplemented)
-	})
+	stream, err := client.RunPipeline(context.Background(), connect.NewRequest(&seedeev1.RunPipelineRequest{}))
+	if err != nil {
+		// RunPipeline with no pipeline should return InvalidArgument.
+		assertConnectCode(t, err, connect.CodeInvalidArgument)
+		return
+	}
+	// Try to receive; the server should close with InvalidArgument.
+	if stream.Receive() {
+		t.Error("expected no messages from nil pipeline request")
+	}
+	assertConnectCode(t, stream.Err(), connect.CodeInvalidArgument)
+}
+
+func TestServer_UnimplementedRPCs(t *testing.T) {
+	baseURL, cancel := startTestServer(t)
+	defer cancel()
+
+	client := seedeev1connect.NewCIServiceClient(http.DefaultClient, baseURL)
 
 	t.Run("GetPipelineStatus", func(t *testing.T) {
 		_, err := client.GetPipelineStatus(context.Background(), connect.NewRequest(&seedeev1.GetPipelineStatusRequest{
