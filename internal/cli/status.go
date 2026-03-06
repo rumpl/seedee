@@ -2,8 +2,11 @@ package cli
 
 import (
 	"fmt"
+	"io"
 
+	seedeev1 "github.com/rumpl/seedee/gen/seedee/v1"
 	"github.com/spf13/cobra"
+	"connectrpc.com/connect"
 )
 
 func newStatusCmd() *cobra.Command {
@@ -12,7 +15,61 @@ func newStatusCmd() *cobra.Command {
 		Short: "Get the status of a pipeline run",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("not yet implemented")
+			if serverAddr == "" {
+				return fmt.Errorf("--server flag is required for status command")
+			}
+
+			client := newCIClient(serverAddr)
+			resp, err := client.GetPipelineStatus(cmd.Context(), connect.NewRequest(&seedeev1.GetPipelineStatusRequest{
+				PipelineId: args[0],
+			}))
+			if err != nil {
+				return fmt.Errorf("getting pipeline status: %w", err)
+			}
+
+			printPipelineStatus(cmd.OutOrStdout(), resp.Msg)
+			return nil
 		},
+	}
+}
+
+func statusIcon(s seedeev1.Status) string {
+	switch s {
+	case seedeev1.Status_STATUS_SUCCESS:
+		return "✓"
+	case seedeev1.Status_STATUS_FAILED:
+		return "✗"
+	case seedeev1.Status_STATUS_RUNNING:
+		return "●"
+	case seedeev1.Status_STATUS_PENDING:
+		return "○"
+	case seedeev1.Status_STATUS_SKIPPED:
+		return "⊘"
+	case seedeev1.Status_STATUS_CANCELED:
+		return "⊗"
+	default:
+		return "?"
+	}
+}
+
+func printPipelineStatus(w io.Writer, resp *seedeev1.GetPipelineStatusResponse) {
+	fmt.Fprintf(w, "%s Pipeline: %s (%s)\n", statusIcon(resp.GetStatus()), resp.GetPipelineName(), resp.GetPipelineId())
+	fmt.Fprintf(w, "  Status:   %s\n", resp.GetStatus())
+	if resp.GetDuration() != nil {
+		fmt.Fprintf(w, "  Duration: %s\n", resp.GetDuration().AsDuration())
+	}
+	fmt.Fprintln(w)
+
+	for _, job := range resp.GetJobs() {
+		fmt.Fprintf(w, "  %s Job: %s\n", statusIcon(job.GetStatus()), job.GetName())
+		if job.GetDuration() != nil {
+			fmt.Fprintf(w, "      Duration: %s\n", job.GetDuration().AsDuration())
+		}
+		for _, step := range job.GetSteps() {
+			fmt.Fprintf(w, "      %s Step: %s\n", statusIcon(step.GetStatus()), step.GetName())
+			if step.GetDuration() != nil {
+				fmt.Fprintf(w, "          Duration: %s\n", step.GetDuration().AsDuration())
+			}
+		}
 	}
 }

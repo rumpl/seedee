@@ -3,7 +3,9 @@ package cli
 import (
 	"fmt"
 
+	seedeev1 "github.com/rumpl/seedee/gen/seedee/v1"
 	"github.com/spf13/cobra"
+	"connectrpc.com/connect"
 )
 
 func newCancelCmd() *cobra.Command {
@@ -12,7 +14,20 @@ func newCancelCmd() *cobra.Command {
 		Short: "Cancel a running pipeline",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("not yet implemented")
+			if serverAddr == "" {
+				return fmt.Errorf("--server flag is required for cancel command")
+			}
+
+			client := newCIClient(serverAddr)
+			resp, err := client.CancelPipeline(cmd.Context(), connect.NewRequest(&seedeev1.CancelPipelineRequest{
+				PipelineId: args[0],
+			}))
+			if err != nil {
+				return fmt.Errorf("canceling pipeline: %w", err)
+			}
+
+			fmt.Fprintln(cmd.OutOrStdout(), resp.Msg.GetMessage())
+			return nil
 		},
 	}
 }
