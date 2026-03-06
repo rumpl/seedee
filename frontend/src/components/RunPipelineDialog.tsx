@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { useNavigate } from "react-router"
 import { create } from "@bufbuild/protobuf"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/8bit/button"
 import {
   Card,
@@ -8,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/8bit/card"
+import { Spinner } from "@/components/Spinner"
 import { useRunPipeline } from "@/hooks/usePipelines"
 import { PipelineDefinitionSchema } from "@/gen/seedee/v1/seedee_pb"
 
@@ -21,20 +23,33 @@ interface RunPipelineDialogProps {
  * Parses a minimal subset: name, env, jobs with image, depends_on, env, and steps.
  */
 function parseYamlToPipeline(yaml: string) {
-  // Basic line-by-line parser for the seedee YAML format
   const lines = yaml.split("\n")
   let name = ""
   const env: Record<string, string> = {}
-  const jobs: Record<string, { image: string; dependsOn: string[]; env: Record<string, string>; steps: { name: string; run: string; env: Record<string, string> }[] }> = {}
+  const jobs: Record<
+    string,
+    {
+      image: string
+      dependsOn: string[]
+      env: Record<string, string>
+      steps: { name: string; run: string; env: Record<string, string> }[]
+    }
+  > = {}
 
-  let context: "root" | "env" | "jobs" | "job" | "job-env" | "job-steps" | "step" | "step-env" = "root"
+  let context:
+    | "root"
+    | "env"
+    | "jobs"
+    | "job"
+    | "job-env"
+    | "job-steps"
+    | "step"
+    | "step-env" = "root"
   let currentJob = ""
   let currentStep = -1
 
   for (const rawLine of lines) {
     const line = rawLine.replace(/\r$/, "")
-
-    // Skip empty lines and comments
     if (line.trim() === "" || line.trim().startsWith("#")) continue
 
     const indent = line.length - line.trimStart().length
@@ -54,7 +69,11 @@ function parseYamlToPipeline(yaml: string) {
 
     if (context === "env" && indent === 2) {
       const [k, ...v] = trimmed.split(":")
-      if (k) env[k.trim()] = v.join(":").trim().replace(/^["']|["']$/g, "")
+      if (k)
+        env[k.trim()] = v
+          .join(":")
+          .trim()
+          .replace(/^["']|["']$/g, "")
       continue
     }
 
@@ -67,12 +86,19 @@ function parseYamlToPipeline(yaml: string) {
 
     if (context === "job" && indent === 4) {
       if (trimmed.startsWith("image:")) {
-        jobs[currentJob].image = trimmed.slice(6).trim().replace(/^["']|["']$/g, "")
+        jobs[currentJob].image = trimmed
+          .slice(6)
+          .trim()
+          .replace(/^["']|["']$/g, "")
       } else if (trimmed === "depends_on:") {
         context = "job"
-        // Next lines with - are depends_on items; handled below
       } else if (trimmed.startsWith("- ") && !trimmed.includes(":")) {
-        jobs[currentJob].dependsOn.push(trimmed.slice(2).trim().replace(/^["']|["']$/g, ""))
+        jobs[currentJob].dependsOn.push(
+          trimmed
+            .slice(2)
+            .trim()
+            .replace(/^["']|["']$/g, ""),
+        )
       } else if (trimmed === "env:") {
         context = "job-env"
       } else if (trimmed === "steps:") {
@@ -84,17 +110,23 @@ function parseYamlToPipeline(yaml: string) {
 
     if (context === "job-env" && indent === 6) {
       const [k, ...v] = trimmed.split(":")
-      if (k) jobs[currentJob].env[k.trim()] = v.join(":").trim().replace(/^["']|["']$/g, "")
+      if (k)
+        jobs[currentJob].env[k.trim()] = v
+          .join(":")
+          .trim()
+          .replace(/^["']|["']$/g, "")
       continue
     }
 
     if (context === "job-env" && indent <= 4) {
       context = "job"
-      // Re-process this line
     }
 
     if (context === "job-steps" && indent === 6 && trimmed.startsWith("- name:")) {
-      const stepName = trimmed.slice(7).trim().replace(/^["']|["']$/g, "")
+      const stepName = trimmed
+        .slice(7)
+        .trim()
+        .replace(/^["']|["']$/g, "")
       jobs[currentJob].steps.push({ name: stepName, run: "", env: {} })
       currentStep = jobs[currentJob].steps.length - 1
       context = "step"
@@ -103,10 +135,11 @@ function parseYamlToPipeline(yaml: string) {
 
     if (context === "step" && indent === 8) {
       if (trimmed.startsWith("run:")) {
-        const runVal = trimmed.slice(4).trim().replace(/^["']|["']$/g, "")
+        const runVal = trimmed
+          .slice(4)
+          .trim()
+          .replace(/^["']|["']$/g, "")
         if (runVal === "|" || runVal === ">") {
-          // Multi-line run: collect following indented lines
-          // Will be handled by next iterations
           jobs[currentJob].steps[currentStep].run = ""
         } else {
           jobs[currentJob].steps[currentStep].run = runVal
@@ -114,7 +147,6 @@ function parseYamlToPipeline(yaml: string) {
       } else if (trimmed === "env:") {
         context = "step-env"
       } else if (!trimmed.startsWith("- ")) {
-        // Continuation of multi-line run
         const step = jobs[currentJob].steps[currentStep]
         if (step.run !== undefined) {
           step.run = step.run ? step.run + "\n" + trimmed : trimmed
@@ -125,21 +157,38 @@ function parseYamlToPipeline(yaml: string) {
 
     if (context === "step-env" && indent === 10) {
       const [k, ...v] = trimmed.split(":")
-      if (k) jobs[currentJob].steps[currentStep].env[k.trim()] = v.join(":").trim().replace(/^["']|["']$/g, "")
+      if (k)
+        jobs[currentJob].steps[currentStep].env[k.trim()] = v
+          .join(":")
+          .trim()
+          .replace(/^["']|["']$/g, "")
       continue
     }
 
-    // Fall back to job-steps if we encounter a new step
-    if ((context === "step" || context === "step-env") && indent === 6 && trimmed.startsWith("- name:")) {
-      const stepName = trimmed.slice(7).trim().replace(/^["']|["']$/g, "")
+    if (
+      (context === "step" || context === "step-env") &&
+      indent === 6 &&
+      trimmed.startsWith("- name:")
+    ) {
+      const stepName = trimmed
+        .slice(7)
+        .trim()
+        .replace(/^["']|["']$/g, "")
       jobs[currentJob].steps.push({ name: stepName, run: "", env: {} })
       currentStep = jobs[currentJob].steps.length - 1
       context = "step"
       continue
     }
 
-    // Fall back to jobs context if we encounter a new job
-    if ((context === "job" || context === "job-env" || context === "job-steps" || context === "step" || context === "step-env") && indent === 2 && trimmed.endsWith(":")) {
+    if (
+      (context === "job" ||
+        context === "job-env" ||
+        context === "job-steps" ||
+        context === "step" ||
+        context === "step-env") &&
+      indent === 2 &&
+      trimmed.endsWith(":")
+    ) {
       currentJob = trimmed.slice(0, -1)
       jobs[currentJob] = { image: "", dependsOn: [], env: {}, steps: [] }
       context = "job"
@@ -165,7 +214,7 @@ function parseYamlToPipeline(yaml: string) {
             env: s.env,
           })),
         },
-      ])
+      ]),
     ),
   })
 }
@@ -183,8 +232,26 @@ export function RunPipelineDialog({ open, onClose }: RunPipelineDialogProps) {
   const [yaml, setYaml] = useState(EXAMPLE_YAML)
   const [parseError, setParseError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const { run, running, error: runError } = useRunPipeline()
+
+  // Focus trap: focus the dialog when opened.
+  useEffect(() => {
+    if (open && dialogRef.current) {
+      dialogRef.current.focus()
+    }
+  }, [open])
+
+  // Escape to close.
+  useEffect(() => {
+    if (!open) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    document.addEventListener("keydown", handleKey)
+    return () => document.removeEventListener("keydown", handleKey)
+  }, [open, onClose])
 
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,7 +267,7 @@ export function RunPipelineDialog({ open, onClose }: RunPipelineDialogProps) {
       }
       reader.readAsText(file)
     },
-    []
+    [],
   )
 
   const handleRun = useCallback(async () => {
@@ -216,37 +283,50 @@ export function RunPipelineDialog({ open, onClose }: RunPipelineDialogProps) {
           }
         },
         onComplete: () => {
+          toast.success("Pipeline submitted successfully")
           if (pipelineId) {
             navigate(`/pipeline/${pipelineId}`)
           }
           onClose()
         },
-        onError: () => {
-          // Error is handled by the hook state
+        onError: (err) => {
+          toast.error("Pipeline run failed", { description: err.message })
         },
       })
 
-      // If we got a pipeline ID during streaming, navigate immediately
       if (pipelineId) {
         navigate(`/pipeline/${pipelineId}`)
         onClose()
       }
     } catch {
       setParseError("Failed to parse YAML. Please check the format.")
+      toast.error("Invalid YAML", {
+        description: "Could not parse the pipeline definition.",
+      })
     }
   }, [yaml, run, navigate, onClose])
 
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Run Pipeline"
+    >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 transition-opacity"
         onClick={onClose}
+        aria-hidden="true"
       />
       {/* Dialog */}
-      <div className="relative z-10 w-full max-w-2xl mx-4">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        className="relative z-10 w-full max-w-2xl mx-4 animate-in fade-in slide-in-from-bottom-4 duration-300 outline-none"
+      >
         <Card>
           <CardHeader>
             <CardTitle>🚀 Run Pipeline</CardTitle>
@@ -254,10 +334,14 @@ export function RunPipelineDialog({ open, onClose }: RunPipelineDialogProps) {
           <CardContent>
             <div className="space-y-4">
               <div>
-                <label className="retro text-xs text-muted-foreground block mb-2">
+                <label
+                  htmlFor="pipeline-yaml"
+                  className="retro text-xs text-muted-foreground block mb-2"
+                >
                   Paste your .seedee.yml configuration:
                 </label>
                 <textarea
+                  id="pipeline-yaml"
                   value={yaml}
                   onChange={(e) => {
                     setYaml(e.target.value)
@@ -266,6 +350,7 @@ export function RunPipelineDialog({ open, onClose }: RunPipelineDialogProps) {
                   className="retro w-full h-48 p-3 text-xs bg-background border-2 border-foreground dark:border-ring font-mono resize-y focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="Paste your pipeline YAML here..."
                   spellCheck={false}
+                  aria-describedby={parseError ? "yaml-error" : undefined}
                 />
               </div>
 
@@ -284,14 +369,21 @@ export function RunPipelineDialog({ open, onClose }: RunPipelineDialogProps) {
                   accept=".yml,.yaml"
                   onChange={handleFileUpload}
                   className="hidden"
+                  aria-label="Upload pipeline YAML file"
                 />
               </div>
 
               {parseError && (
-                <p className="retro text-xs text-red-500">{parseError}</p>
+                <p
+                  id="yaml-error"
+                  className="retro text-xs text-red-500"
+                  role="alert"
+                >
+                  {parseError}
+                </p>
               )}
               {runError && (
-                <p className="retro text-xs text-red-500">
+                <p className="retro text-xs text-red-500" role="alert">
                   Error: {runError.message}
                 </p>
               )}
@@ -309,8 +401,15 @@ export function RunPipelineDialog({ open, onClose }: RunPipelineDialogProps) {
                   size="sm"
                   onClick={handleRun}
                   disabled={running || !yaml.trim()}
+                  aria-label={running ? "Pipeline is running" : "Run pipeline"}
                 >
-                  {running ? "⏳ Running..." : "▶️ Run"}
+                  {running ? (
+                    <span className="flex items-center gap-2">
+                      <Spinner label="Running pipeline" /> Running…
+                    </span>
+                  ) : (
+                    "▶️ Run"
+                  )}
                 </Button>
               </div>
             </div>

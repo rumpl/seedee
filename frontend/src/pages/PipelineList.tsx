@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/8bit/button"
 import {
   Card,
@@ -19,9 +20,13 @@ import { useListPipelines } from "@/hooks/usePipelines"
 import { StatusBadge } from "@/components/StatusBadge"
 import { statusIcon } from "@/lib/status"
 import { RunPipelineDialog } from "@/components/RunPipelineDialog"
+import { Spinner } from "@/components/Spinner"
 import type { PipelineSummary } from "@/gen/seedee/v1/seedee_pb"
 
-function formatDuration(duration?: { seconds?: bigint; nanos?: number }): string {
+function formatDuration(duration?: {
+  seconds?: bigint
+  nanos?: number
+}): string {
   if (!duration?.seconds && !duration?.nanos) return "—"
   const totalSeconds = Number(duration.seconds ?? 0n)
   if (totalSeconds < 60) return `${totalSeconds}s`
@@ -30,7 +35,10 @@ function formatDuration(duration?: { seconds?: bigint; nanos?: number }): string
   return `${minutes}m ${seconds}s`
 }
 
-function formatTimestamp(timestamp?: { seconds?: bigint; nanos?: number }): string {
+function formatTimestamp(timestamp?: {
+  seconds?: bigint
+  nanos?: number
+}): string {
   if (!timestamp?.seconds) return "—"
   const date = new Date(Number(timestamp.seconds) * 1000)
   return date.toLocaleString()
@@ -44,20 +52,21 @@ function shortId(id: string): string {
 // ---------- Loading Skeleton ----------
 function LoadingSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" role="status" aria-label="Loading pipelines">
       {/* Desktop skeleton */}
       <div className="hidden md:block">
         <div className="w-full">
           {[...Array(5)].map((_, i) => (
             <div
               key={i}
-              className="flex gap-4 py-3 px-2 border-b border-dashed border-muted"
+              className="flex gap-4 py-3 px-2 border-b border-dashed border-muted animate-pulse"
+              style={{ animationDelay: `${i * 100}ms` }}
             >
-              <div className="h-4 w-16 bg-muted animate-pulse" />
-              <div className="h-4 w-32 bg-muted animate-pulse" />
-              <div className="h-4 w-20 bg-muted animate-pulse" />
-              <div className="h-4 w-16 bg-muted animate-pulse" />
-              <div className="h-4 w-24 bg-muted animate-pulse" />
+              <div className="h-4 w-16 bg-muted rounded" />
+              <div className="h-4 w-32 bg-muted rounded" />
+              <div className="h-4 w-20 bg-muted rounded" />
+              <div className="h-4 w-16 bg-muted rounded" />
+              <div className="h-4 w-24 bg-muted rounded" />
             </div>
           ))}
         </div>
@@ -67,15 +76,19 @@ function LoadingSkeleton() {
         {[...Array(3)].map((_, i) => (
           <Card key={i}>
             <CardContent className="pt-4">
-              <div className="space-y-3">
-                <div className="h-4 w-3/4 bg-muted animate-pulse" />
-                <div className="h-3 w-1/2 bg-muted animate-pulse" />
-                <div className="h-3 w-2/3 bg-muted animate-pulse" />
+              <div
+                className="space-y-3 animate-pulse"
+                style={{ animationDelay: `${i * 120}ms` }}
+              >
+                <div className="h-4 w-3/4 bg-muted rounded" />
+                <div className="h-3 w-1/2 bg-muted rounded" />
+                <div className="h-3 w-2/3 bg-muted rounded" />
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+      <span className="sr-only">Loading pipeline data…</span>
     </div>
   )
 }
@@ -86,7 +99,9 @@ function EmptyState({ onRunPipeline }: { onRunPipeline: () => void }) {
     <Card>
       <CardContent className="py-12">
         <div className="text-center space-y-4">
-          <div className="text-4xl">🏗️</div>
+          <div className="text-4xl" aria-hidden="true">
+            🏗️
+          </div>
           <p className="retro text-sm text-muted-foreground">
             No pipeline runs yet
           </p>
@@ -112,10 +127,22 @@ function PipelineCard({
 }) {
   return (
     <Card>
-      <CardHeader className="cursor-pointer" onClick={onClick}>
+      <CardHeader
+        className="cursor-pointer"
+        onClick={onClick}
+        tabIndex={0}
+        role="link"
+        aria-label={`Pipeline ${pipeline.name || "Unnamed"}`}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            onClick()
+          }
+        }}
+      >
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm">
-            {statusIcon(pipeline.status)}{" "}
+            <span aria-hidden="true">{statusIcon(pipeline.status)}</span>{" "}
             {pipeline.name || "Unnamed Pipeline"}
           </CardTitle>
           <StatusBadge status={pipeline.status} />
@@ -168,8 +195,17 @@ function PipelineTable({
         {pipelines.map((p) => (
           <TableRow
             key={p.pipelineId}
-            className="cursor-pointer hover:bg-accent/50"
+            className="cursor-pointer hover:bg-accent/50 transition-colors duration-150 focus-within:bg-accent/50"
             onClick={() => onRowClick(p.pipelineId)}
+            tabIndex={0}
+            role="link"
+            aria-label={`Pipeline ${p.name || "Unnamed"} — ${p.pipelineId}`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                onRowClick(p.pipelineId)
+              }
+            }}
           >
             <TableCell>
               <StatusBadge status={p.status} />
@@ -201,12 +237,21 @@ export default function PipelineList() {
 
   const pipelines = data?.pipelines ?? []
 
+  // Toast on error
+  useEffect(() => {
+    if (error) {
+      toast.error("Failed to load pipelines", {
+        description: error.message,
+      })
+    }
+  }, [error])
+
   const handleRowClick = (id: string) => {
     navigate(`/pipeline/${id}`)
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="container mx-auto py-8 px-4 animate-in fade-in duration-300">
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
         <div>
@@ -224,11 +269,17 @@ export default function PipelineList() {
 
       {/* Error state */}
       {error && (
-        <Card className="mb-4">
+        <Card className="mb-4" role="alert">
           <CardContent className="py-4">
-            <p className="retro text-xs text-red-500">
-              ⚠️ Failed to load pipelines: {error.message}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="retro text-xs text-red-500">
+                ⚠️ Failed to load pipelines: {error.message}
+              </p>
+              <Spinner
+                className="text-red-500"
+                label="Retrying connection…"
+              />
+            </div>
           </CardContent>
         </Card>
       )}
@@ -254,12 +305,17 @@ export default function PipelineList() {
 
           {/* Mobile cards */}
           <div className="md:hidden grid gap-4">
-            {pipelines.map((p) => (
-              <PipelineCard
+            {pipelines.map((p, i) => (
+              <div
                 key={p.pipelineId}
-                pipeline={p}
-                onClick={() => handleRowClick(p.pipelineId)}
-              />
+                className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+                style={{ animationDelay: `${i * 60}ms`, animationFillMode: "both" }}
+              >
+                <PipelineCard
+                  pipeline={p}
+                  onClick={() => handleRowClick(p.pipelineId)}
+                />
+              </div>
             ))}
           </div>
         </>

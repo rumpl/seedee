@@ -59,38 +59,36 @@ function LogLine({ entry, colorMap, showTimestamp }: LogLineProps) {
   if (entry.stepName) {
     prefixParts.push({
       text: entry.stepName,
-      color: prefixColor(
-        `${entry.jobName}/${entry.stepName}`,
-        colorMap,
-      ),
+      color: prefixColor(`${entry.jobName}/${entry.stepName}`, colorMap),
     })
   }
 
   return (
     <div
-      className={`flex items-start gap-2 px-3 py-0.5 leading-5 font-mono text-xs hover:bg-white/5 ${
+      className={`flex items-start gap-2 px-3 py-0.5 leading-5 font-mono text-xs hover:bg-white/5 transition-colors duration-75 ${
         isLifecycle
           ? "bg-white/[0.03] text-blue-300 italic"
           : entry.isStderr
             ? "text-red-400"
             : "text-gray-200"
       }`}
+      role="listitem"
     >
       {/* Timestamp */}
       {showTimestamp && (
-        <span className="shrink-0 text-gray-600 select-none w-20 text-[10px]">
+        <span
+          className="shrink-0 text-gray-600 select-none w-20 text-[10px]"
+          aria-label={`Time: ${entry.timestamp.slice(11, 23)}`}
+        >
           {entry.timestamp.slice(11, 23)}
         </span>
       )}
 
       {/* Prefix badges */}
       {prefixParts.length > 0 && (
-        <span className="shrink-0 select-none flex gap-1">
+        <span className="shrink-0 select-none flex gap-1" aria-hidden="true">
           {prefixParts.map((p, i) => (
-            <span
-              key={i}
-              className={`${p.color} font-bold text-[10px]`}
-            >
+            <span key={i} className={`${p.color} font-bold text-[10px]`}>
               [{p.text}]
             </span>
           ))}
@@ -170,7 +168,6 @@ export function LogViewer({
     const el = parentRef.current
     if (!el) return
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    // If user scrolled more than 80px from bottom, disable auto-scroll.
     if (distFromBottom > 80) {
       setAutoScroll(false)
     } else {
@@ -210,18 +207,25 @@ export function LogViewer({
             <CardTitle className="flex items-center gap-2">
               📟 Logs
               {streaming && (
-                <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span
+                  className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"
+                  aria-label="Streaming live"
+                />
               )}
             </CardTitle>
-            <span className="retro text-[10px] text-muted-foreground">
+            <span className="retro text-[10px] text-muted-foreground" aria-live="polite">
               {filtered.length} / {entries.length} lines
             </span>
           </div>
 
           {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Log filters">
             {/* Job filter */}
+            <label className="sr-only" htmlFor="log-job-filter">
+              Filter by job
+            </label>
             <select
+              id="log-job-filter"
               value={jobFilter}
               onChange={(e) => setJobFilter(e.target.value)}
               className="retro text-[10px] h-7 px-2 bg-background border-2 border-foreground dark:border-ring focus:outline-none focus:ring-1 focus:ring-primary"
@@ -235,7 +239,11 @@ export function LogViewer({
             </select>
 
             {/* Step filter */}
+            <label className="sr-only" htmlFor="log-step-filter">
+              Filter by step
+            </label>
             <select
+              id="log-step-filter"
               value={stepFilter}
               onChange={(e) => setStepFilter(e.target.value)}
               className="retro text-[10px] h-7 px-2 bg-background border-2 border-foreground dark:border-ring focus:outline-none focus:ring-1 focus:ring-primary"
@@ -271,7 +279,11 @@ export function LogViewer({
             </label>
 
             {/* Search */}
+            <label className="sr-only" htmlFor="log-search">
+              Search logs
+            </label>
             <input
+              id="log-search"
               type="text"
               placeholder="🔍 Search logs..."
               value={searchQuery}
@@ -288,6 +300,8 @@ export function LogViewer({
             ref={parentRef}
             onScroll={handleScroll}
             className="h-[420px] overflow-auto bg-[#0d1117] rounded-none"
+            role="list"
+            aria-label="Log output"
           >
             <div
               style={{
@@ -335,6 +349,13 @@ export function LogViewer({
             )}
           </div>
 
+          {/* Progress indicator for streaming */}
+          {streaming && entries.length > 0 && (
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-green-500/30 overflow-hidden">
+              <div className="h-full w-1/3 bg-green-500 animate-[slide_1.5s_ease-in-out_infinite]" />
+            </div>
+          )}
+
           {/* Scroll-to-bottom button */}
           {!autoScroll && (
             <div className="absolute bottom-3 right-3">
@@ -343,6 +364,7 @@ export function LogViewer({
                 size="sm"
                 onClick={scrollToBottom}
                 className="text-[10px] bg-[#0d1117] border-gray-600 text-gray-300 hover:bg-gray-800"
+                aria-label="Scroll to bottom of logs"
               >
                 ↓ Scroll to bottom
               </Button>

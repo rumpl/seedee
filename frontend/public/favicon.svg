@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 🌱 Pixel-art seedling favicon -->
+  <rect width="32" height="32" rx="4" fill="#18181b"/>
+  <!-- Stem -->
+  <rect x="15" y="12" width="2" height="10" fill="#22c55e"/>
+  <!-- Left leaf -->
+  <rect x="11" y="10" width="4" height="2" fill="#4ade80"/>
+  <rect x="13" y="8" width="2" height="2" fill="#4ade80"/>
+  <!-- Right leaf -->
+  <rect x="17" y="10" width="4" height="2" fill="#4ade80"/>
+  <rect x="17" y="8" width="2" height="2" fill="#4ade80"/>
+  <!-- Ground -->
+  <rect x="8" y="22" width="16" height="2" fill="#a16207"/>
+  <rect x="10" y="24" width="12" height="2" fill="#92400e"/>
+</svg>

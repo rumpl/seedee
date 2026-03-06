@@ -1,5 +1,6 @@
 import { useParams, Link } from "react-router"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 import Layout from "@/components/Layout"
 import { Button } from "@/components/ui/8bit/button"
 import {
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/8bit/table"
 import { StatusBadge } from "@/components/StatusBadge"
 import { LogViewer } from "@/components/LogViewer"
+import { Spinner } from "@/components/Spinner"
 import { usePipelineStatus, useRunPipeline } from "@/hooks/usePipelines"
 import { useLogStream } from "@/hooks/useLogStream"
 import { create } from "@bufbuild/protobuf"
@@ -34,10 +36,69 @@ import {
   PipelineDefinitionSchema,
 } from "@/gen/seedee/v1/seedee_pb"
 import type { RunPipelineEvent } from "@/gen/seedee/v1/seedee_pb"
+import NotFound from "@/pages/NotFound"
+
+// ---------- Loading Skeleton ----------
+function DetailSkeleton() {
+  return (
+    <div
+      className="space-y-6 animate-pulse"
+      role="status"
+      aria-label="Loading pipeline details"
+    >
+      <div className="flex items-center gap-3">
+        <div className="h-7 w-48 bg-muted rounded" />
+        <div className="h-5 w-20 bg-muted rounded" />
+      </div>
+      <div className="h-px bg-muted" />
+      <div className="space-y-3">
+        {[...Array(3)].map((_, i) => (
+          <div
+            key={i}
+            className="flex gap-4 py-3"
+            style={{ animationDelay: `${i * 80}ms` }}
+          >
+            <div className="h-4 w-24 bg-muted rounded" />
+            <div className="h-4 w-20 bg-muted rounded" />
+            <div className="h-4 w-16 bg-muted rounded" />
+          </div>
+        ))}
+      </div>
+      <span className="sr-only">Loading pipeline details…</span>
+    </div>
+  )
+}
+
+// ---------- Step sub-table ----------
+function StepRows({
+  steps,
+}: {
+  steps: { name: string; status: Status; exitCode: number; duration?: { seconds?: bigint } }[]
+}) {
+  return (
+    <>
+      {steps.map((step) => (
+        <TableRow key={step.name} className="bg-muted/30">
+          <TableCell className="retro text-[10px] pl-8 text-muted-foreground">
+            ↳ {step.name}
+          </TableCell>
+          <TableCell>
+            <StatusBadge status={step.status} />
+          </TableCell>
+          <TableCell className="retro text-xs">
+            {step.duration
+              ? `${Number(step.duration.seconds ?? 0n)}s`
+              : "—"}
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  )
+}
 
 export default function PipelineDetail() {
   const { id } = useParams<{ id: string }>()
-  const { data, loading } = usePipelineStatus({
+  const { data, loading, error } = usePipelineStatus({
     pipelineId: id ?? "",
     enabled: !!id,
   })
@@ -46,6 +107,26 @@ export default function PipelineDetail() {
   const logStream = useLogStream()
   const { run, running } = useRunPipeline()
   const [hasLogs, setHasLogs] = useState(false)
+
+  // --- Collapsible job rows ---
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const toggleJob = useCallback((name: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }, [])
+
+  // Toast on error
+  useEffect(() => {
+    if (error) {
+      toast.error("Failed to load pipeline status", {
+        description: error.message,
+      })
+    }
+  }, [error])
 
   // Callback for streaming events into the log viewer.
   const handleEvent = useCallback(
@@ -58,9 +139,6 @@ export default function PipelineDetail() {
 
   const handleStartStream = useCallback(async () => {
     if (!data) return
-    // Build a minimal pipeline definition from the status data to re-run.
-    // In a real app this would come from a stored definition; here we use the
-    // status jobs to build a skeleton.
     logStream.reset()
     setHasLogs(true)
 
@@ -87,8 +165,14 @@ export default function PipelineDetail() {
 
     await run(pipeline, {
       onEvent: handleEvent,
-      onComplete: () => logStream.complete(),
-      onError: () => logStream.complete(),
+      onComplete: () => {
+        logStream.complete()
+        toast.success("Pipeline run completed")
+      },
+      onError: (err) => {
+        logStream.complete()
+        toast.error("Pipeline run failed", { description: err.message })
+      },
     })
   }, [data, run, logStream, handleEvent])
 
@@ -96,42 +180,58 @@ export default function PipelineDetail() {
   const isRunning = data?.status === Status.RUNNING
   const showLogs = hasLogs || isRunning
 
-  // Active tab — default to logs if we have them.
   const defaultTab = useMemo(
     () => (showLogs ? "logs" : "runs"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [], // only set initial value
+    [],
   )
+
+  // 404 for unknown pipeline — show after loading completes with no data
+  const is404 = !loading && !data && error
+
+  if (is404) {
+    return <NotFound />
+  }
 
   return (
     <Layout>
-      <div className="container mx-auto py-8 px-4">
+      <div className="container mx-auto py-8 px-4 animate-in fade-in duration-300">
         <div className="mb-6">
           <Link to="/">
-            <Button variant="ghost" size="sm" className="mb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-4"
+              aria-label="Back to dashboard"
+            >
               ← Back to Dashboard
             </Button>
           </Link>
-          <div className="flex items-center gap-3">
-            <h1 className="retro text-2xl font-bold tracking-tight">
-              Pipeline: {data?.pipelineName || id}
-            </h1>
-            {data && <StatusBadge status={data.status} />}
-            {loading && !data && (
-              <div className="h-5 w-20 bg-muted animate-pulse" />
-            )}
-          </div>
+
+          {loading && !data ? (
+            <DetailSkeleton />
+          ) : (
+            <div className="flex items-center gap-3">
+              <h1 className="retro text-2xl font-bold tracking-tight">
+                Pipeline: {data?.pipelineName || id}
+              </h1>
+              {data && <StatusBadge status={data.status} />}
+            </div>
+          )}
         </div>
 
         <Separator className="mb-6" />
 
         <Tabs defaultValue={defaultTab}>
-          <TabsList>
+          <TabsList aria-label="Pipeline tabs">
             <TabsTrigger value="runs">Jobs</TabsTrigger>
             <TabsTrigger value="logs">
               📟 Logs
               {logStream.streaming && hasLogs && (
-                <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span
+                  className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"
+                  aria-label="Live streaming"
+                />
               )}
             </TabsTrigger>
             <TabsTrigger value="config">Configuration</TabsTrigger>
@@ -155,19 +255,44 @@ export default function PipelineDetail() {
                   <TableBody>
                     {data && data.jobs.length > 0 ? (
                       data.jobs.map((job) => (
-                        <TableRow key={job.name}>
-                          <TableCell className="retro text-xs font-medium">
-                            {job.name}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={job.status} />
-                          </TableCell>
-                          <TableCell className="retro text-xs">
-                            {job.duration
-                              ? `${Number(job.duration.seconds ?? 0n)}s`
-                              : "—"}
-                          </TableCell>
-                        </TableRow>
+                        <>
+                          <TableRow
+                            key={job.name}
+                            className="cursor-pointer hover:bg-accent/50 transition-colors duration-150"
+                            onClick={() => toggleJob(job.name)}
+                            tabIndex={0}
+                            role="button"
+                            aria-expanded={expanded.has(job.name)}
+                            aria-label={`Job ${job.name}`}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                toggleJob(job.name)
+                              }
+                            }}
+                          >
+                            <TableCell className="retro text-xs font-medium">
+                              <span className="mr-1" aria-hidden="true">
+                                {expanded.has(job.name) ? "▾" : "▸"}
+                              </span>
+                              {job.name}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge status={job.status} />
+                            </TableCell>
+                            <TableCell className="retro text-xs">
+                              {job.duration
+                                ? `${Number(job.duration.seconds ?? 0n)}s`
+                                : "—"}
+                            </TableCell>
+                          </TableRow>
+                          {expanded.has(job.name) && job.steps.length > 0 && (
+                            <StepRows
+                              key={`${job.name}-steps`}
+                              steps={job.steps}
+                            />
+                          )}
+                        </>
                       ))
                     ) : (
                       <TableRow>
@@ -175,7 +300,13 @@ export default function PipelineDetail() {
                           className="retro text-xs text-muted-foreground"
                           colSpan={3}
                         >
-                          {loading ? "Loading..." : "No jobs yet"}
+                          {loading ? (
+                            <span className="flex items-center gap-2">
+                              <Spinner label="Loading jobs" /> Loading…
+                            </span>
+                          ) : (
+                            "No jobs yet"
+                          )}
                         </TableCell>
                       </TableRow>
                     )}
@@ -191,7 +322,9 @@ export default function PipelineDetail() {
               <Card>
                 <CardContent className="py-12">
                   <div className="text-center space-y-4">
-                    <div className="text-4xl">📟</div>
+                    <div className="text-4xl" aria-hidden="true">
+                      📟
+                    </div>
                     <p className="retro text-sm text-muted-foreground">
                       No logs available yet
                     </p>
@@ -205,7 +338,13 @@ export default function PipelineDetail() {
                         onClick={() => void handleStartStream()}
                         disabled={running}
                       >
-                        {running ? "⏳ Streaming..." : "▶️ Re-run & Stream"}
+                        {running ? (
+                          <span className="flex items-center gap-2">
+                            <Spinner label="Streaming" /> Streaming…
+                          </span>
+                        ) : (
+                          "▶️ Re-run & Stream"
+                        )}
                       </Button>
                     )}
                   </div>

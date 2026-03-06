@@ -41,6 +41,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --animate-slide: slide 1.5s ease-in-out infinite;
 }
 
 :root {
@@ -120,5 +121,15 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Streaming progress bar animation */
+@keyframes slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
   }
 }
