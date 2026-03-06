@@ -7,8 +7,6 @@ import (
 	"io"
 	"sync"
 	"time"
-
-	"golang.org/x/sync/errgroup"
 )
 
 // EngineRunner defines the interface the engine uses to execute jobs and steps.
@@ -33,6 +31,8 @@ func (e *Engine) emit(event Event) {
 }
 
 // Execute runs the given pipeline to completion, returning a PipelineResult.
+// Each job starts as soon as all of its specific dependencies have completed,
+// rather than waiting for an entire scheduling group to finish.
 func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResult, error) {
 	pipeline.Status = StatusRunning
 	pipeline.StartedAt = time.Now()
@@ -44,8 +44,8 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 		PipelineName: pipeline.Name,
 	})
 
-	// Schedule the pipeline into execution groups
-	groups, err := Schedule(pipeline)
+	// Use Schedule for validation (dependency resolution, cycle detection)
+	_, err := Schedule(pipeline)
 	if err != nil {
 		pipeline.Status = StatusFailed
 		pipeline.EndedAt = time.Now()
@@ -69,6 +69,13 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 		}, err
 	}
 
+	// Create a completion channel for each job so dependents can wait
+	// on specific jobs rather than entire groups.
+	doneCh := make(map[string]chan struct{}, len(pipeline.Jobs))
+	for _, job := range pipeline.Jobs {
+		doneCh[job.Name] = make(chan struct{})
+	}
+
 	// Track which jobs failed so we can skip dependents
 	var failedMu sync.Mutex
 	failedJobs := make(map[string]bool)
@@ -77,12 +84,26 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 	var jobResultsMu sync.Mutex
 	jobResults := make(map[string]JobResult)
 
-	// Process each execution group sequentially; jobs within a group run in parallel
-	for _, group := range groups {
-		// Check for context cancellation before starting a new group
-		if ctx.Err() != nil {
-			// Mark remaining jobs as canceled
-			for _, job := range group.Jobs {
+	// Launch all jobs concurrently; each waits only on its own deps.
+	var wg sync.WaitGroup
+	for _, job := range pipeline.Jobs {
+		job := job // capture loop variable
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			defer close(doneCh[job.Name])
+
+			// Wait for all specific dependencies to complete.
+			for _, dep := range job.DependsOn {
+				select {
+				case <-doneCh[dep]:
+				case <-ctx.Done():
+				}
+			}
+
+			// Check for context cancellation.
+			if ctx.Err() != nil {
 				job.Status = StatusCanceled
 				job.EndedAt = time.Now()
 				jobResultsMu.Lock()
@@ -92,74 +113,66 @@ func (e *Engine) Execute(ctx context.Context, pipeline *Pipeline) (*PipelineResu
 					Duration: 0,
 				}
 				jobResultsMu.Unlock()
-			}
-			break
-		}
 
-		g, gctx := errgroup.WithContext(ctx)
-
-		for _, job := range group.Jobs {
-			job := job // capture loop variable
-
-			g.Go(func() error {
-				// Check if any dependency failed
 				failedMu.Lock()
-				shouldSkip := false
-				for _, dep := range job.DependsOn {
-					if failedJobs[dep] {
-						shouldSkip = true
-						break
-					}
-				}
+				failedJobs[job.Name] = true
 				failedMu.Unlock()
+				return
+			}
 
-				if shouldSkip {
-					job.Status = StatusSkipped
-					job.EndedAt = time.Now()
-
-					e.emit(Event{
-						Type:         EventJobSkipped,
-						Timestamp:    job.EndedAt,
-						PipelineID:   pipeline.ID,
-						PipelineName: pipeline.Name,
-						JobName:      job.Name,
-						Status:       StatusSkipped,
-					})
-
-					failedMu.Lock()
-					failedJobs[job.Name] = true
-					failedMu.Unlock()
-					jobResultsMu.Lock()
-					jobResults[job.Name] = JobResult{
-						JobName:  job.Name,
-						Status:   StatusSkipped,
-						Duration: 0,
-					}
-					jobResultsMu.Unlock()
-					return nil
+			// Check if any dependency failed.
+			failedMu.Lock()
+			shouldSkip := false
+			for _, dep := range job.DependsOn {
+				if failedJobs[dep] {
+					shouldSkip = true
+					break
 				}
+			}
+			failedMu.Unlock()
 
-				result := e.executeJob(gctx, pipeline, job)
+			if shouldSkip {
+				job.Status = StatusSkipped
+				job.EndedAt = time.Now()
 
+				e.emit(Event{
+					Type:         EventJobSkipped,
+					Timestamp:    job.EndedAt,
+					PipelineID:   pipeline.ID,
+					PipelineName: pipeline.Name,
+					JobName:      job.Name,
+					Status:       StatusSkipped,
+				})
+
+				failedMu.Lock()
+				failedJobs[job.Name] = true
+				failedMu.Unlock()
 				jobResultsMu.Lock()
-				jobResults[job.Name] = result
-				jobResultsMu.Unlock()
-
-				if result.Status == StatusFailed || result.Status == StatusCanceled {
-					failedMu.Lock()
-					failedJobs[job.Name] = true
-					failedMu.Unlock()
+				jobResults[job.Name] = JobResult{
+					JobName:  job.Name,
+					Status:   StatusSkipped,
+					Duration: 0,
 				}
+				jobResultsMu.Unlock()
+				return
+			}
 
-				// Don't return error from errgroup — we handle failure via failedJobs tracking.
-				// Returning an error would cancel sibling jobs in the same group.
-				return nil
-			})
-		}
+			result := e.executeJob(ctx, pipeline, job)
 
-		// Wait for all jobs in this group to complete
-		_ = g.Wait()
+			jobResultsMu.Lock()
+			jobResults[job.Name] = result
+			jobResultsMu.Unlock()
+
+			if result.Status == StatusFailed || result.Status == StatusCanceled {
+				failedMu.Lock()
+				failedJobs[job.Name] = true
+				failedMu.Unlock()
+			}
+		}()
 	}
+
+	// Wait for all jobs to finish.
+	wg.Wait()
 
 	// Determine final pipeline status
 	pipeline.EndedAt = time.Now()
