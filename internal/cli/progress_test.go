@@ -826,14 +826,18 @@ func TestProgressHandler_LiveRefresh_RedrawsWithoutEvents_TTY(t *testing.T) {
 		Timestamp: time.Now(),
 	})
 
-	before := len(out.String())
+	h.mu.Lock()
+	before := out.Len()
+	h.mu.Unlock()
 
 	h.startLiveRefresh(20 * time.Millisecond)
 	defer h.stopLiveRefresh()
 
 	time.Sleep(150 * time.Millisecond)
 
-	after := len(out.String())
+	h.mu.Lock()
+	after := out.Len()
+	h.mu.Unlock()
 	if after <= before {
 		t.Errorf("expected periodic redraws without events, before=%d after=%d", before, after)
 	}
@@ -854,14 +858,18 @@ func TestProgressHandler_LiveRefresh_NoopNonTTY(t *testing.T) {
 		JobName: "build",
 	})
 
-	before := len(out.String())
+	h.mu.Lock()
+	before := out.Len()
+	h.mu.Unlock()
 
 	h.startLiveRefresh(10 * time.Millisecond)
 	defer h.stopLiveRefresh()
 
 	time.Sleep(50 * time.Millisecond)
 
-	after := len(out.String())
+	h.mu.Lock()
+	after := out.Len()
+	h.mu.Unlock()
 	if after != before {
 		t.Errorf("expected no redraws in non-TTY mode, before=%d after=%d", before, after)
 	}
