@@ -783,6 +783,90 @@ func TestProgressHandler_ThreadSafe(t *testing.T) {
 	}
 }
 
+// --- Live elapsed-time timer tests ---
+
+func TestProgressHandler_RunningJobShowsElapsed_TTY(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+	output := out.String()
+	if !strings.Contains(output, "0s") {
+		t.Errorf("expected running job to show elapsed time, got: %s", output)
+	}
+}
+
+func TestProgressHandler_LiveRefresh_RedrawsWithoutEvents_TTY(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, true)
+	h.getWidth = fixedWidth(120)
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:      core.EventStepStarted,
+		JobName:   "build",
+		StepName:  "compile",
+		Timestamp: time.Now(),
+	})
+
+	before := len(out.String())
+
+	h.startLiveRefresh(20 * time.Millisecond)
+	defer h.stopLiveRefresh()
+
+	time.Sleep(150 * time.Millisecond)
+
+	after := len(out.String())
+	if after <= before {
+		t.Errorf("expected periodic redraws without events, before=%d after=%d", before, after)
+	}
+}
+
+func TestProgressHandler_LiveRefresh_NoopNonTTY(t *testing.T) {
+	out := &bytes.Buffer{}
+	h := newProgressHandler(out, out, false)
+	h.getWidth = fixedWidth(120)
+	_ = h.HandleEvent(&core.Event{
+		Type:         core.EventPipelineStarted,
+		PipelineID:   "pipe-1",
+		PipelineName: "ci",
+		Timestamp:    time.Now(),
+	})
+	_ = h.HandleEvent(&core.Event{
+		Type:    core.EventJobStarted,
+		JobName: "build",
+	})
+
+	before := len(out.String())
+
+	h.startLiveRefresh(10 * time.Millisecond)
+	defer h.stopLiveRefresh()
+
+	time.Sleep(50 * time.Millisecond)
+
+	after := len(out.String())
+	if after != before {
+		t.Errorf("expected no redraws in non-TTY mode, before=%d after=%d", before, after)
+	}
+}
+
 // --- stepKey tests ---
 
 func TestStepKey(t *testing.T) {

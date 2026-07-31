@@ -9,9 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
 	"github.com/rumpl/seedee/gen/seedee/v1/seedeev1connect"
 )
 
@@ -52,11 +49,14 @@ func (s *Server) Start(ctx context.Context) error {
 		_, _ = fmt.Fprintln(w, "ok")
 	})
 
-	h2cHandler := h2c.NewHandler(mux, &http2.Server{})
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
 
 	srv := &http.Server{
-		Addr:    s.cfg.Addr,
-		Handler: h2cHandler,
+		Addr:      s.cfg.Addr,
+		Handler:   mux,
+		Protocols: protocols,
 	}
 
 	// Start background goroutine to prune old completed pipeline runs.

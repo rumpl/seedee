@@ -20,6 +20,10 @@ const maxFailedLogLines = 10
 // dynamic bottom zone.
 const maxTailLines = 5
 
+// refreshInterval is how often the dynamic bottom zone is redrawn so running
+// jobs show a live elapsed time even when a job produces no output.
+const refreshInterval = 250 * time.Millisecond
+
 // termWidth returns the current terminal width, falling back to 80.
 func termWidth() int {
 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
@@ -93,6 +97,11 @@ type progressEventHandler struct {
 
 	// finished is set when the pipeline finishes.
 	finished bool
+
+	// Live elapsed-time refresh (TTY only). stopTicker/tickerDone control the
+	// background goroutine that periodically redraws the bottom zone.
+	stopTicker chan struct{}
+	tickerDone chan struct{}
 }
 
 func newProgressHandler(out, errOut io.Writer, isTTY bool) *progressEventHandler {
@@ -306,9 +315,10 @@ func (h *progressEventHandler) printNonTTYStepFinished(e *core.Event, ss *stepSt
 // printNonTTYJobFinished prints a job completion line (non-TTY).
 func (h *progressEventHandler) printNonTTYJobFinished(e *core.Event) {
 	icon := "✓"
-	if e.Status == core.StatusFailed {
+	switch e.Status {
+	case core.StatusFailed:
 		icon = "✗"
-	} else if e.Status == core.StatusCanceled {
+	case core.StatusCanceled:
 		icon = "⊗"
 	}
 
@@ -384,8 +394,8 @@ func (h *progressEventHandler) redrawBottomZone() {
 		// Job status line
 		switch js.status {
 		case core.StatusRunning:
-			_, _ = fmt.Fprintf(&bottomBuf, " %s %s\n",
-				bold(true, "=>"), jobName)
+			_, _ = fmt.Fprintf(&bottomBuf, " %s %s %s\n",
+				bold(true, "=>"), jobName, dim(true, jobElapsed(js.startedAt).String()))
 			lineCount++
 
 			// Show log tails for running steps of this job.
@@ -486,6 +496,72 @@ func (h *progressEventHandler) waitingDeps(jobName string) []string {
 	return waiting
 }
 
+// jobElapsed returns the time elapsed since the job started, rounded to a
+// tenth of a second. It returns zero if the job has no valid start time.
+func jobElapsed(startedAt time.Time) time.Duration {
+	if startedAt.IsZero() {
+		return 0
+	}
+	elapsed := time.Since(startedAt)
+	if elapsed < 0 {
+		return 0
+	}
+	return elapsed.Round(100 * time.Millisecond)
+}
+
+// startLiveRefresh launches a background goroutine that periodically redraws
+// the dynamic bottom zone so running jobs show a live elapsed time even when a
+// job produces no output for a long time. It is a no-op in non-TTY mode.
+// The caller must call stopLiveRefresh (or the returned stop func) to stop it.
+func (h *progressEventHandler) startLiveRefresh(interval time.Duration) {
+	if !h.isTTY {
+		return
+	}
+	if interval <= 0 {
+		interval = refreshInterval
+	}
+	h.stopTicker = make(chan struct{})
+	h.tickerDone = make(chan struct{})
+	go func() {
+		defer close(h.tickerDone)
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				h.mu.Lock()
+				if !h.finished && h.hasRunningJob() {
+					h.redrawBottomZone()
+				}
+				h.mu.Unlock()
+			case <-h.stopTicker:
+				return
+			}
+		}
+	}()
+}
+
+// stopLiveRefresh stops the live refresh goroutine and waits for it to exit.
+func (h *progressEventHandler) stopLiveRefresh() {
+	if h.stopTicker == nil {
+		return
+	}
+	close(h.stopTicker)
+	<-h.tickerDone
+	h.stopTicker = nil
+	h.tickerDone = nil
+}
+
+// hasRunningJob reports whether any job is currently running.
+func (h *progressEventHandler) hasRunningJob() bool {
+	for _, js := range h.jobs {
+		if js.status == core.StatusRunning {
+			return true
+		}
+	}
+	return false
+}
+
 // truncateANSI truncates a string that may contain ANSI escapes so that the
 // visible (non-escape) character count does not exceed width.
 func truncateANSI(s string, width int) string {
@@ -555,7 +631,8 @@ func (h *progressEventHandler) printTTYSummary(result *core.PipelineResult) {
 
 	// Also print lines for jobs that only appear in the result (e.g. if
 	// the event stream was sparse).
-	for _, jr := range result.Jobs {
+	for i := range result.Jobs {
+		jr := &result.Jobs[i]
 		if h.printedJobHeaders[jr.JobName] {
 			continue
 		}
@@ -582,9 +659,10 @@ func (h *progressEventHandler) printTTYSummary(result *core.PipelineResult) {
 	}
 
 	statusWord := "completed"
-	if result.Status == core.StatusFailed {
+	switch result.Status {
+	case core.StatusFailed:
 		statusWord = "failed"
-	} else if result.Status == core.StatusCanceled {
+	case core.StatusCanceled:
 		statusWord = "canceled"
 	}
 
@@ -605,9 +683,10 @@ func (h *progressEventHandler) printPlainSummary(result *core.PipelineResult) {
 	}
 
 	statusWord := "completed"
-	if result.Status == core.StatusFailed {
+	switch result.Status {
+	case core.StatusFailed:
 		statusWord = "failed"
-	} else if result.Status == core.StatusCanceled {
+	case core.StatusCanceled:
 		statusWord = "canceled"
 	}
 
@@ -640,7 +719,7 @@ func (h *progressEventHandler) printPlainSummary(result *core.PipelineResult) {
 
 // printSummaryJobLine prints a job result line with ANSI colors (used in TTY
 // summary when we only have a JobResult, not a jobState).
-func (h *progressEventHandler) printSummaryJobLine(jr core.JobResult, width int) {
+func (h *progressEventHandler) printSummaryJobLine(jr *core.JobResult, width int) {
 	padWidth := width - 10
 	if padWidth < 20 {
 		padWidth = 20

@@ -63,6 +63,18 @@ func newEventHandler(isTTY bool) summaryPrinter {
 	return newProgressHandler(os.Stdout, os.Stderr, isTTY)
 }
 
+// startLiveRefresh starts the live elapsed-time redraw on a TTY progress
+// handler and returns a function to stop it. It is a no-op for other handler
+// types and in non-TTY mode.
+func startLiveRefresh(h summaryPrinter) func() {
+	ph, ok := h.(*progressEventHandler)
+	if !ok {
+		return func() {}
+	}
+	ph.startLiveRefresh(0)
+	return ph.stopLiveRefresh
+}
+
 func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 	// 1. Create Docker client
 	dockerClient, err := docker.NewClient()
@@ -92,6 +104,8 @@ func runLocal(ctx context.Context, pipeline *core.Pipeline) error {
 
 	// 4. Create event handler for terminal output
 	handler := newEventHandler(isTerminal())
+	stopRefresh := startLiveRefresh(handler)
+	defer stopRefresh()
 
 	// 5. Create and run engine
 	engine := &core.Engine{
@@ -130,6 +144,8 @@ func runRemote(ctx context.Context, pipeline *core.Pipeline, addr string) error 
 
 	// 4. Create event handler
 	handler := newEventHandler(isTerminal())
+	stopRefresh := startLiveRefresh(handler)
+	defer stopRefresh()
 
 	// 5. Read events from stream and display them
 	var lastStatus seedeev1.Status
